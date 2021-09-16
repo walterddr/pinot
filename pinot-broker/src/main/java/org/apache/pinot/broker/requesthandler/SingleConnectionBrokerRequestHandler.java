@@ -35,7 +35,7 @@ import org.apache.pinot.common.metrics.BrokerQueryPhase;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.response.broker.BrokerResponseNative;
 import org.apache.pinot.common.response.broker.QueryProcessingException;
-import org.apache.pinot.common.utils.DataTable;
+import org.apache.pinot.spi.utils.DataTable;
 import org.apache.pinot.common.utils.HashUtil;
 import org.apache.pinot.common.utils.helix.TableCache;
 import org.apache.pinot.core.transport.AsyncQueryResponse;

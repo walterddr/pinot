@@ -18,7 +18,7 @@
  */
 package org.apache.pinot.core.plan;
 
-import org.apache.pinot.common.utils.DataTable;
+import org.apache.pinot.spi.utils.DataTable;
 import org.apache.pinot.core.operator.InstanceResponseOperator;
 import org.apache.pinot.core.operator.blocks.InstanceResponseBlock;
 import org.slf4j.Logger;
