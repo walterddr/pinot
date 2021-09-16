@@ -26,7 +26,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.PriorityQueue;
-import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
 import org.apache.pinot.common.response.broker.SelectionResults;
 import org.apache.pinot.spi.utils.DataSchema;
 import org.apache.pinot.spi.utils.DataTable;

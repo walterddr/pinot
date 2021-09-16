@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.common.request.context;
+package org.apache.pinot.spi.request.context.context;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,16 +26,16 @@ import org.apache.pinot.common.request.Expression;
 import org.apache.pinot.common.request.ExpressionType;
 import org.apache.pinot.common.request.FilterOperator;
 import org.apache.pinot.common.request.Function;
-import org.apache.pinot.common.request.context.predicate.EqPredicate;
-import org.apache.pinot.common.request.context.predicate.InPredicate;
-import org.apache.pinot.common.request.context.predicate.IsNotNullPredicate;
-import org.apache.pinot.common.request.context.predicate.IsNullPredicate;
-import org.apache.pinot.common.request.context.predicate.JsonMatchPredicate;
-import org.apache.pinot.common.request.context.predicate.NotEqPredicate;
-import org.apache.pinot.common.request.context.predicate.NotInPredicate;
-import org.apache.pinot.common.request.context.predicate.RangePredicate;
-import org.apache.pinot.common.request.context.predicate.RegexpLikePredicate;
-import org.apache.pinot.common.request.context.predicate.TextMatchPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.EqPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.InPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.IsNotNullPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.IsNullPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.JsonMatchPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.NotEqPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.NotInPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.RangePredicate;
+import org.apache.pinot.spi.request.context.context.predicate.RegexpLikePredicate;
+import org.apache.pinot.spi.request.context.context.predicate.TextMatchPredicate;
 import org.apache.pinot.common.utils.LikeToRegexpLikePatternConverterUtils;
 import org.apache.pinot.common.utils.request.FilterQueryTree;
 import org.apache.pinot.pql.parsers.Pql2Compiler;

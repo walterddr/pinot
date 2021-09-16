@@ -19,7 +19,7 @@
 package org.apache.pinot.core.plan;
 
 import java.util.List;
-import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
 import org.apache.pinot.core.operator.query.DictionaryBasedDistinctOperator;
 import org.apache.pinot.core.query.aggregation.function.AggregationFunction;
 import org.apache.pinot.core.query.aggregation.function.DistinctAggregationFunction;

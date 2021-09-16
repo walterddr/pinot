@@ -19,9 +19,9 @@
 package org.apache.pinot.controller.recommender.rules.impl;
 
 import com.google.common.util.concurrent.AtomicDouble;
-import org.apache.pinot.common.request.context.ExpressionContext;
-import org.apache.pinot.common.request.context.FilterContext;
-import org.apache.pinot.common.request.context.predicate.Predicate;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.FilterContext;
+import org.apache.pinot.spi.request.context.context.predicate.Predicate;
 import org.apache.pinot.controller.recommender.io.ConfigManager;
 import org.apache.pinot.controller.recommender.io.InputManager;
 import org.apache.pinot.controller.recommender.rules.AbstractRule;

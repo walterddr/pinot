@@ -31,7 +31,7 @@ import java.util.TreeMap;
 import org.apache.commons.collections.comparators.ComparableComparator;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
 import org.apache.pinot.common.response.broker.GroupByResult;
 import org.apache.pinot.core.query.aggregation.function.AggregationFunction;
 import org.apache.pinot.core.query.aggregation.function.AggregationFunctionUtils;

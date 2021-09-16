@@ -23,7 +23,7 @@ import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
 import org.apache.pinot.spi.utils.DataSchema;
 import org.apache.pinot.spi.utils.DataSchema.ColumnDataType;
 import org.apache.pinot.core.data.table.Record;

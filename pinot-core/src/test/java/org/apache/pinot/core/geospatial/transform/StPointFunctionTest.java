@@ -18,8 +18,8 @@
  */
 package org.apache.pinot.core.geospatial.transform;
 
-import org.apache.pinot.common.request.context.ExpressionContext;
-import org.apache.pinot.common.request.context.RequestContextUtils;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.RequestContextUtils;
 import org.apache.pinot.core.geospatial.transform.function.StPointFunction;
 import org.apache.pinot.core.operator.transform.function.BaseTransformFunctionTest;
 import org.apache.pinot.core.operator.transform.function.TransformFunction;

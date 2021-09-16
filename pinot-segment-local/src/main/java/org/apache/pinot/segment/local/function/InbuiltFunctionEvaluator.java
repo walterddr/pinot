@@ -24,9 +24,9 @@ import java.util.List;
 import org.apache.pinot.common.function.FunctionInfo;
 import org.apache.pinot.common.function.FunctionInvoker;
 import org.apache.pinot.common.function.FunctionRegistry;
-import org.apache.pinot.common.request.context.ExpressionContext;
-import org.apache.pinot.common.request.context.FunctionContext;
-import org.apache.pinot.common.request.context.RequestContextUtils;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.FunctionContext;
+import org.apache.pinot.spi.request.context.context.RequestContextUtils;
 import org.apache.pinot.spi.data.readers.GenericRow;
 
 

@@ -20,7 +20,7 @@ package org.apache.pinot.core.query.optimizer.filter;
 
 import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.pinot.common.request.context.predicate.RangePredicate;
+import org.apache.pinot.spi.request.context.context.predicate.RangePredicate;
 import org.apache.pinot.spi.data.FieldSpec.DataType;
 
 

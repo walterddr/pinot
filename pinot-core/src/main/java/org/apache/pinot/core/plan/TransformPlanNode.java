@@ -21,7 +21,7 @@ package org.apache.pinot.core.plan;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
-import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
 import org.apache.pinot.core.operator.transform.PassThroughTransformOperator;
 import org.apache.pinot.core.operator.transform.TransformOperator;
 import org.apache.pinot.core.query.request.context.QueryContext;

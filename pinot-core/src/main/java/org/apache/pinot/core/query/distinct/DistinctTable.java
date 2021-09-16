@@ -31,7 +31,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import javax.annotation.Nullable;
-import org.apache.pinot.common.request.context.OrderByExpressionContext;
+import org.apache.pinot.spi.request.context.context.OrderByExpressionContext;
 import org.apache.pinot.spi.utils.DataSchema;
 import org.apache.pinot.spi.utils.DataSchema.ColumnDataType;
 import org.apache.pinot.spi.utils.DataTable;

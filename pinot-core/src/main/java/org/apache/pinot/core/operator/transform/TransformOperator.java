@@ -21,7 +21,7 @@ package org.apache.pinot.core.operator.transform;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
 import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.operator.ExecutionStatistics;
 import org.apache.pinot.core.operator.ProjectionOperator;

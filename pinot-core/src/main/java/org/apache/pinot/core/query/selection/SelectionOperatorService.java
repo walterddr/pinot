@@ -25,7 +25,7 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
-import org.apache.pinot.common.request.context.OrderByExpressionContext;
+import org.apache.pinot.spi.request.context.context.OrderByExpressionContext;
 import org.apache.pinot.common.response.broker.ResultTable;
 import org.apache.pinot.common.response.broker.SelectionResults;
 import org.apache.pinot.spi.utils.DataSchema;

@@ -20,8 +20,8 @@ package org.apache.pinot.core.query.distinct.raw;
 
 import java.util.List;
 import javax.annotation.Nullable;
-import org.apache.pinot.common.request.context.ExpressionContext;
-import org.apache.pinot.common.request.context.OrderByExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.OrderByExpressionContext;
 import org.apache.pinot.spi.utils.DataSchema;
 import org.apache.pinot.spi.utils.DataSchema.ColumnDataType;
 import org.apache.pinot.core.common.BlockValSet;

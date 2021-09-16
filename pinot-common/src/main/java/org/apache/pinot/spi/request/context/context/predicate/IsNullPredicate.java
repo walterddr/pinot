@@ -16,25 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.common.request.context.predicate;
+package org.apache.pinot.spi.request.context.context.predicate;
 
 import java.util.Objects;
-import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
 
 
 /**
- * Predicate for IS_NOT_NULL.
+ * Predicate for IS_NULL.
  */
-public class IsNotNullPredicate implements Predicate {
+public class IsNullPredicate implements Predicate {
   private final ExpressionContext _lhs;
 
-  public IsNotNullPredicate(ExpressionContext lhs) {
+  public IsNullPredicate(ExpressionContext lhs) {
     _lhs = lhs;
   }
 
   @Override
   public Type getType() {
-    return Type.IS_NOT_NULL;
+    return Type.IS_NULL;
   }
 
   @Override
@@ -47,10 +47,10 @@ public class IsNotNullPredicate implements Predicate {
     if (this == o) {
       return true;
     }
-    if (!(o instanceof IsNotNullPredicate)) {
+    if (!(o instanceof IsNullPredicate)) {
       return false;
     }
-    IsNotNullPredicate that = (IsNotNullPredicate) o;
+    IsNullPredicate that = (IsNullPredicate) o;
     return Objects.equals(_lhs, that._lhs);
   }
 
@@ -61,6 +61,6 @@ public class IsNotNullPredicate implements Predicate {
 
   @Override
   public String toString() {
-    return _lhs + " IS NOT NULL";
+    return _lhs + " IS NULL";
   }
 }

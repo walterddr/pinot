@@ -16,28 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.pinot.common.request.context.predicate;
+package org.apache.pinot.spi.request.context.context.predicate;
 
-import java.util.List;
 import java.util.Objects;
-import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
 
 
 /**
- * Predicate for NOT_IN.
+ * Predicate for NOT_EQ.
  */
-public class NotInPredicate implements Predicate {
+public class NotEqPredicate implements Predicate {
   private final ExpressionContext _lhs;
-  private final List<String> _values;
+  private final String _value;
 
-  public NotInPredicate(ExpressionContext lhs, List<String> values) {
+  public NotEqPredicate(ExpressionContext lhs, String value) {
     _lhs = lhs;
-    _values = values;
+    _value = value;
   }
 
   @Override
   public Type getType() {
-    return Type.NOT_IN;
+    return Type.NOT_EQ;
   }
 
   @Override
@@ -45,8 +44,8 @@ public class NotInPredicate implements Predicate {
     return _lhs;
   }
 
-  public List<String> getValues() {
-    return _values;
+  public String getValue() {
+    return _value;
   }
 
   @Override
@@ -54,26 +53,20 @@ public class NotInPredicate implements Predicate {
     if (this == o) {
       return true;
     }
-    if (!(o instanceof NotInPredicate)) {
+    if (!(o instanceof NotEqPredicate)) {
       return false;
     }
-    NotInPredicate that = (NotInPredicate) o;
-    return Objects.equals(_lhs, that._lhs) && Objects.equals(_values, that._values);
+    NotEqPredicate that = (NotEqPredicate) o;
+    return Objects.equals(_lhs, that._lhs) && Objects.equals(_value, that._value);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(_lhs, _values);
+    return Objects.hash(_lhs, _value);
   }
 
   @Override
   public String toString() {
-    StringBuilder stringBuilder =
-        new StringBuilder(_lhs.toString()).append(" NOT IN ('").append(_values.get(0)).append('\'');
-    int numValues = _values.size();
-    for (int i = 1; i < numValues; i++) {
-      stringBuilder.append(",'").append(_values.get(i)).append('\'');
-    }
-    return stringBuilder.append(')').toString();
+    return _lhs + " != '" + _value + '\'';
   }
 }

@@ -20,7 +20,7 @@ package org.apache.pinot.core.plan;
 
 import com.google.common.base.Preconditions;
 import java.util.List;
-import org.apache.pinot.common.request.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
 import org.apache.pinot.core.operator.streaming.StreamingSelectionOnlyOperator;
 import org.apache.pinot.core.query.request.context.QueryContext;
 import org.apache.pinot.core.query.selection.SelectionOperatorUtils;

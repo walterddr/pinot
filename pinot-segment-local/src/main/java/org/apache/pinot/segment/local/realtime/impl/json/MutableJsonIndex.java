@@ -26,14 +26,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import org.apache.pinot.common.request.context.ExpressionContext;
-import org.apache.pinot.common.request.context.FilterContext;
-import org.apache.pinot.common.request.context.RequestContextUtils;
-import org.apache.pinot.common.request.context.predicate.EqPredicate;
-import org.apache.pinot.common.request.context.predicate.InPredicate;
-import org.apache.pinot.common.request.context.predicate.NotEqPredicate;
-import org.apache.pinot.common.request.context.predicate.NotInPredicate;
-import org.apache.pinot.common.request.context.predicate.Predicate;
+import org.apache.pinot.spi.request.context.context.ExpressionContext;
+import org.apache.pinot.spi.request.context.context.FilterContext;
+import org.apache.pinot.spi.request.context.context.RequestContextUtils;
+import org.apache.pinot.spi.request.context.context.predicate.EqPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.InPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.NotEqPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.NotInPredicate;
+import org.apache.pinot.spi.request.context.context.predicate.Predicate;
 import org.apache.pinot.segment.local.segment.creator.impl.inv.json.BaseJsonIndexCreator;
 import org.apache.pinot.segment.spi.index.creator.JsonIndexCreator;
 import org.apache.pinot.segment.spi.index.reader.JsonIndexReader;
@@ -44,7 +44,7 @@ import org.roaringbitmap.IntConsumer;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
 
-import static org.apache.pinot.common.request.context.FilterContext.Type.PREDICATE;
+import static org.apache.pinot.spi.request.context.context.FilterContext.Type.PREDICATE;
 
 
 /**
