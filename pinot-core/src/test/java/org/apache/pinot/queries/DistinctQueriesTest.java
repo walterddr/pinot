@@ -1049,9 +1049,11 @@ public class DistinctQueriesTest extends BaseQueriesTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put(CommonConstants.Broker.CONFIG_OF_MAX_REDUCE_THREADS_PER_QUERY, 2); // 2 Threads for 2 data-tables.
     BrokerReduceService brokerReduceService = new BrokerReduceService(new PinotConfiguration(properties));
-    Map<ServerRoutingInstance, DataTable> dataTableMap = new HashMap<>();
-    dataTableMap.put(new ServerRoutingInstance("localhost", 1234, TableType.OFFLINE), instanceResponse0);
-    dataTableMap.put(new ServerRoutingInstance("localhost", 1234, TableType.REALTIME), instanceResponse1);
+    Map<ServerRoutingInstance, List<DataTable>> dataTableMap = new HashMap<>();
+    dataTableMap.put(new ServerRoutingInstance("localhost", 1234, TableType.OFFLINE),
+        Collections.singletonList(instanceResponse0));
+    dataTableMap.put(new ServerRoutingInstance("localhost", 1234, TableType.REALTIME),
+        Collections.singletonList(instanceResponse1));
     BrokerResponseNative brokerResponse =
         brokerReduceService.reduceOnDataTable(queryContext.getBrokerRequest(), dataTableMap,
             CommonConstants.Broker.DEFAULT_BROKER_TIMEOUT_MS, null);

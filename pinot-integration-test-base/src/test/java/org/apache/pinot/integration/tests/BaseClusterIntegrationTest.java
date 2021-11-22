@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
 import org.apache.commons.io.FileUtils;
 import org.apache.pinot.client.ConnectionFactory;
 import org.apache.pinot.client.Request;
+import org.apache.pinot.client.ResultSetGroup;
 import org.apache.pinot.common.utils.TarGzCompressionUtils;
 import org.apache.pinot.common.utils.config.TagNameUtils;
 import org.apache.pinot.plugin.stream.kafka.KafkaStreamConfigProperties;
@@ -532,6 +533,8 @@ public abstract class BaseClusterIntegrationTest extends ClusterTest {
    */
   protected long getCurrentCountStarResult()
       throws Exception {
+//    ResultSetGroup sql = getPinotConnection().execute(new Request("sql", "SELECT * FROM mytable_OFFLINE LIMIT 1000000"));
+//    return 0;
     return getPinotConnection().execute(new Request("sql", "SELECT COUNT(*) FROM " + getTableName())).getResultSet(0)
         .getLong(0);
   }

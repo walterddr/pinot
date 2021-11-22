@@ -19,6 +19,7 @@
 package org.apache.pinot.broker.requesthandler;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,13 +96,14 @@ public class SingleConnectionBrokerRequestHandler extends BaseBrokerRequestHandl
 
     int numServersQueried = response.size();
     long totalResponseSize = 0;
-    Map<ServerRoutingInstance, DataTable> dataTableMap = new HashMap<>(HashUtil.getHashMapCapacity(numServersQueried));
+    Map<ServerRoutingInstance, List<DataTable>> dataTableMap = new HashMap<>(
+        HashUtil.getHashMapCapacity(numServersQueried));
     List<ServerRoutingInstance> serversNotResponded = new ArrayList<>();
     for (Map.Entry<ServerRoutingInstance, ServerResponse> entry : response.entrySet()) {
       ServerResponse serverResponse = entry.getValue();
       DataTable dataTable = serverResponse.getDataTable();
       if (dataTable != null) {
-        dataTableMap.put(entry.getKey(), dataTable);
+        dataTableMap.put(entry.getKey(), Collections.singletonList(dataTable));
         totalResponseSize += serverResponse.getResponseSize();
       } else {
         serversNotResponded.add(entry.getKey());

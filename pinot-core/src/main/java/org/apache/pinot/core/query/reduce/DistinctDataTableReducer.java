@@ -21,11 +21,14 @@ package org.apache.pinot.core.query.reduce;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.pinot.common.metrics.BrokerMetrics;
+import org.apache.pinot.common.proto.Server;
 import org.apache.pinot.common.response.broker.BrokerResponseNative;
 import org.apache.pinot.common.response.broker.ResultTable;
 import org.apache.pinot.common.response.broker.SelectionResults;
@@ -60,7 +63,7 @@ public class DistinctDataTableReducer implements DataTableReducer {
    */
   @Override
   public void reduceAndSetResults(String tableName, DataSchema dataSchema,
-      Map<ServerRoutingInstance, DataTable> dataTableMap, BrokerResponseNative brokerResponseNative,
+      Map<ServerRoutingInstance, List<DataTable>> dataTableMap, BrokerResponseNative brokerResponseNative,
       DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics) {
     // DISTINCT is implemented as an aggregation function in the execution engine. Just like
     // other aggregation functions, DISTINCT returns its result as a single object
@@ -71,7 +74,12 @@ public class DistinctDataTableReducer implements DataTableReducer {
 
     // Gather all non-empty DistinctTables
     List<DistinctTable> nonEmptyDistinctTables = new ArrayList<>(dataTableMap.size());
-    for (DataTable dataTable : dataTableMap.values()) {
+
+    // TODO: make this more efficient based on FluentIterable
+    Collection<DataTable> dataTables = dataTableMap.values()
+        .stream().flatMap(List::stream).collect(Collectors.toList());
+
+    for (DataTable dataTable : dataTables) {
       DistinctTable distinctTable = dataTable.getObject(0, 0);
       if (!distinctTable.isEmpty()) {
         nonEmptyDistinctTables.add(distinctTable);
@@ -112,6 +120,13 @@ public class DistinctDataTableReducer implements DataTableReducer {
         brokerResponseNative.setSelectionResults(reduceToSelectionResult(mainDistinctTable));
       }
     }
+  }
+
+  @Override
+  public void reduceOnStreamingResponseAndSetResults(String tableName, DataSchema dataSchema,
+      Map<ServerRoutingInstance, Iterator<Server.ServerResponse>> serverResponseMap,
+      BrokerResponseNative brokerResponseNative, DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics) {
+    throw new UnsupportedOperationException("Currently no supporting streaming response reduce!");
   }
 
   private SelectionResults reduceToSelectionResult(DistinctTable distinctTable) {

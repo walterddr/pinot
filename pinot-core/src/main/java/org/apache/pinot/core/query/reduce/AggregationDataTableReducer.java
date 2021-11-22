@@ -20,10 +20,14 @@ package org.apache.pinot.core.query.reduce;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.pinot.common.metrics.BrokerMetrics;
+import org.apache.pinot.common.proto.Server;
 import org.apache.pinot.common.response.broker.AggregationResult;
 import org.apache.pinot.common.response.broker.BrokerResponseNative;
 import org.apache.pinot.common.response.broker.ResultTable;
@@ -62,7 +66,7 @@ public class AggregationDataTableReducer implements DataTableReducer {
    */
   @Override
   public void reduceAndSetResults(String tableName, DataSchema dataSchema,
-      Map<ServerRoutingInstance, DataTable> dataTableMap, BrokerResponseNative brokerResponseNative,
+      Map<ServerRoutingInstance, List<DataTable>> dataTableMap, BrokerResponseNative brokerResponseNative,
       DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics) {
     if (dataTableMap.isEmpty()) {
       if (_responseFormatSql) {
@@ -76,28 +80,33 @@ public class AggregationDataTableReducer implements DataTableReducer {
     // Merge results from all data tables
     int numAggregationFunctions = _aggregationFunctions.length;
     Object[] intermediateResults = new Object[numAggregationFunctions];
-    for (DataTable dataTable : dataTableMap.values()) {
-      for (int i = 0; i < numAggregationFunctions; i++) {
-        Object intermediateResultToMerge;
-        ColumnDataType columnDataType = dataSchema.getColumnDataType(i);
-        switch (columnDataType) {
-          case LONG:
-            intermediateResultToMerge = dataTable.getLong(0, i);
-            break;
-          case DOUBLE:
-            intermediateResultToMerge = dataTable.getDouble(0, i);
-            break;
-          case OBJECT:
-            intermediateResultToMerge = dataTable.getObject(0, i);
-            break;
-          default:
-            throw new IllegalStateException("Illegal column data type in aggregation results: " + columnDataType);
-        }
-        Object mergedIntermediateResult = intermediateResults[i];
-        if (mergedIntermediateResult == null) {
-          intermediateResults[i] = intermediateResultToMerge;
-        } else {
-          intermediateResults[i] = _aggregationFunctions[i].merge(mergedIntermediateResult, intermediateResultToMerge);
+    // TODO: make this more efficient based on FluentIterable
+    Collection<DataTable> dataTables = dataTableMap.values()
+        .stream().flatMap(List::stream).collect(Collectors.toList());
+    for (DataTable dataTable : dataTables) {
+      if (dataTable.getNumberOfRows() > 0) {
+        for (int i = 0; i < numAggregationFunctions; i++) {
+          Object intermediateResultToMerge;
+          ColumnDataType columnDataType = dataSchema.getColumnDataType(i);
+          switch (columnDataType) {
+            case LONG:
+              intermediateResultToMerge = dataTable.getLong(0, i);
+              break;
+            case DOUBLE:
+              intermediateResultToMerge = dataTable.getDouble(0, i);
+              break;
+            case OBJECT:
+              intermediateResultToMerge = dataTable.getObject(0, i);
+              break;
+            default:
+              throw new IllegalStateException("Illegal column data type in aggregation results: " + columnDataType);
+          }
+          Object mergedIntermediateResult = intermediateResults[i];
+          if (mergedIntermediateResult == null) {
+            intermediateResults[i] = intermediateResultToMerge;
+          } else {
+            intermediateResults[i] = _aggregationFunctions[i].merge(mergedIntermediateResult, intermediateResultToMerge);
+          }
         }
       }
     }
@@ -113,6 +122,13 @@ public class AggregationDataTableReducer implements DataTableReducer {
     } else {
       brokerResponseNative.setAggregationResults(reduceToAggregationResults(finalResults, dataSchema.getColumnNames()));
     }
+  }
+
+  @Override
+  public void reduceOnStreamingResponseAndSetResults(String tableName, DataSchema dataSchema,
+      Map<ServerRoutingInstance, Iterator<Server.ServerResponse>> serverResponseMap,
+      BrokerResponseNative brokerResponseNative, DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics) {
+    throw new UnsupportedOperationException("Currently no supporting streaming response reduce!");
   }
 
   /**

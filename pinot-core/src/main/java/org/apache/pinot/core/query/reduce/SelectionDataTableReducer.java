@@ -19,13 +19,16 @@
 package org.apache.pinot.core.query.reduce;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.metrics.BrokerMeter;
 import org.apache.pinot.common.metrics.BrokerMetrics;
+import org.apache.pinot.common.proto.Server;
 import org.apache.pinot.common.response.broker.BrokerResponseNative;
 import org.apache.pinot.common.response.broker.QueryProcessingException;
 import org.apache.pinot.common.response.broker.ResultTable;
@@ -66,7 +69,7 @@ public class SelectionDataTableReducer implements DataTableReducer {
    */
   @Override
   public void reduceAndSetResults(String tableName, DataSchema dataSchema,
-      Map<ServerRoutingInstance, DataTable> dataTableMap, BrokerResponseNative brokerResponseNative,
+      Map<ServerRoutingInstance, List<DataTable>> dataTableMap, BrokerResponseNative brokerResponseNative,
       DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics) {
     if (dataTableMap.isEmpty()) {
       // For empty data table map, construct empty result using the cached data schema for selection query
@@ -95,10 +98,13 @@ public class SelectionDataTableReducer implements DataTableReducer {
       }
 
       int limit = _queryContext.getLimit();
+      // TODO: make this more efficient based on FluentIterable
+      Collection<DataTable> dataTables = dataTableMap.values()
+          .stream().flatMap(List::stream).collect(Collectors.toList());
       if (limit > 0 && _queryContext.getOrderByExpressions() != null) {
         // Selection order-by
         SelectionOperatorService selectionService = new SelectionOperatorService(_queryContext, dataSchema);
-        selectionService.reduceWithOrdering(dataTableMap.values());
+        selectionService.reduceWithOrdering(dataTables);
         if (_responseFormatSql) {
           brokerResponseNative.setResultTable(selectionService.renderResultTableWithOrdering());
         } else {
@@ -107,7 +113,7 @@ public class SelectionDataTableReducer implements DataTableReducer {
       } else {
         // Selection only
         List<String> selectionColumns = SelectionOperatorUtils.getSelectionColumns(_queryContext, dataSchema);
-        List<Object[]> reducedRows = SelectionOperatorUtils.reduceWithoutOrdering(dataTableMap.values(), limit);
+        List<Object[]> reducedRows = SelectionOperatorUtils.reduceWithoutOrdering(dataTables, limit);
         if (_responseFormatSql) {
           brokerResponseNative.setResultTable(
               SelectionOperatorUtils.renderResultTableWithoutOrdering(reducedRows, dataSchema, selectionColumns));
@@ -120,6 +126,13 @@ public class SelectionDataTableReducer implements DataTableReducer {
     }
   }
 
+  @Override
+  public void reduceOnStreamingResponseAndSetResults(String tableName, DataSchema dataSchema,
+      Map<ServerRoutingInstance, Iterator<Server.ServerResponse>> serverResponseMap,
+      BrokerResponseNative brokerResponseNative, DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics) {
+    throw new UnsupportedOperationException("Currently no supporting streaming response reduce!");
+  }
+
   /**
    * Given a data schema, remove data tables that are not compatible with this data schema.
    * <p>Upgrade the data schema passed in to cover all remaining data schemas.
@@ -129,18 +142,21 @@ public class SelectionDataTableReducer implements DataTableReducer {
    * @return list of server names where the data table got removed.
    */
   private List<ServerRoutingInstance> removeConflictingResponses(DataSchema dataSchema,
-      Map<ServerRoutingInstance, DataTable> dataTableMap) {
+      Map<ServerRoutingInstance, List<DataTable>> dataTableMap) {
     List<ServerRoutingInstance> droppedServers = new ArrayList<>();
-    Iterator<Map.Entry<ServerRoutingInstance, DataTable>> iterator = dataTableMap.entrySet().iterator();
+    Iterator<Map.Entry<ServerRoutingInstance, List<DataTable>>> iterator = dataTableMap.entrySet().iterator();
     while (iterator.hasNext()) {
-      Map.Entry<ServerRoutingInstance, DataTable> entry = iterator.next();
-      DataSchema dataSchemaToCompare = entry.getValue().getDataSchema();
-      assert dataSchemaToCompare != null;
-      if (!dataSchema.isTypeCompatibleWith(dataSchemaToCompare)) {
-        droppedServers.add(entry.getKey());
-        iterator.remove();
-      } else {
-        dataSchema.upgradeToCover(dataSchemaToCompare);
+      Map.Entry<ServerRoutingInstance, List<DataTable>> entry = iterator.next();
+      List<DataTable> dataTableList = entry.getValue();
+      if (dataTableList.size() > 0) {
+        DataSchema dataSchemaToCompare = dataTableList.get(0).getDataSchema();
+        assert dataSchemaToCompare != null;
+        if (!dataSchema.isTypeCompatibleWith(dataSchemaToCompare)) {
+          droppedServers.add(entry.getKey());
+          iterator.remove();
+        } else {
+          dataSchema.upgradeToCover(dataSchemaToCompare);
+        }
       }
     }
     return droppedServers;

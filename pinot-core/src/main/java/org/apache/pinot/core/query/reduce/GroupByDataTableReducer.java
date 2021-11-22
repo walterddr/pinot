@@ -29,10 +29,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.metrics.BrokerGauge;
 import org.apache.pinot.common.metrics.BrokerMeter;
 import org.apache.pinot.common.metrics.BrokerMetrics;
+import org.apache.pinot.common.proto.Server;
 import org.apache.pinot.common.request.context.ExpressionContext;
 import org.apache.pinot.common.request.context.FilterContext;
 import org.apache.pinot.common.response.broker.AggregationResult;
@@ -99,11 +101,13 @@ public class GroupByDataTableReducer implements DataTableReducer {
    */
   @Override
   public void reduceAndSetResults(String tableName, DataSchema dataSchema,
-      Map<ServerRoutingInstance, DataTable> dataTableMap, BrokerResponseNative brokerResponseNative,
+      Map<ServerRoutingInstance, List<DataTable>> dataTableMap, BrokerResponseNative brokerResponseNative,
       DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics) {
     assert dataSchema != null;
     int resultSize = 0;
-    Collection<DataTable> dataTables = dataTableMap.values();
+    // TODO: make this more efficient based on FluentIterable
+    Collection<DataTable> dataTables = dataTableMap.values()
+        .stream().flatMap(List::stream).collect(Collectors.toList());
 
     // For group by, PQL behavior is different than the SQL behavior. In the PQL way,
     // a result is generated for each aggregation in the query,
@@ -176,6 +180,13 @@ public class GroupByDataTableReducer implements DataTableReducer {
     if (brokerMetrics != null && resultSize > 0) {
       brokerMetrics.addMeteredTableValue(tableName, BrokerMeter.GROUP_BY_SIZE, resultSize);
     }
+  }
+
+  @Override
+  public void reduceOnStreamingResponseAndSetResults(String tableName, DataSchema dataSchema,
+      Map<ServerRoutingInstance, Iterator<Server.ServerResponse>> serverResponseMap,
+      BrokerResponseNative brokerResponseNative, DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics) {
+    throw new UnsupportedOperationException("Currently no supporting streaming response reduce!");
   }
 
   /**

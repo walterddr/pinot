@@ -18,8 +18,11 @@
  */
 package org.apache.pinot.core.query.reduce;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import org.apache.pinot.common.metrics.BrokerMetrics;
+import org.apache.pinot.common.proto.Server;
 import org.apache.pinot.common.response.broker.BrokerResponseNative;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataTable;
@@ -40,6 +43,19 @@ public interface DataTableReducer {
    * @param reducerContext DataTableReducer context
    * @param brokerMetrics broker metrics
    */
-  void reduceAndSetResults(String tableName, DataSchema dataSchema, Map<ServerRoutingInstance, DataTable> dataTableMap,
+  void reduceAndSetResults(String tableName, DataSchema dataSchema, Map<ServerRoutingInstance, List<DataTable>> dataTableMap,
+      BrokerResponseNative brokerResponseNative, DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics);
+
+  /**
+   *
+   * @param tableName
+   * @param dataSchema
+   * @param serverResponseMap
+   * @param brokerResponseNative
+   * @param reducerContext
+   * @param brokerMetrics
+   */
+  void reduceOnStreamingResponseAndSetResults(String tableName, DataSchema dataSchema,
+      Map<ServerRoutingInstance, Iterator<Server.ServerResponse>> serverResponseMap,
       BrokerResponseNative brokerResponseNative, DataTableReducerContext reducerContext, BrokerMetrics brokerMetrics);
 }

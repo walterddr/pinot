@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.queries;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -215,16 +216,16 @@ public abstract class BaseQueriesTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put(CommonConstants.Broker.CONFIG_OF_MAX_REDUCE_THREADS_PER_QUERY, 2); // 2 Threads for 2 Data-tables.
     BrokerReduceService brokerReduceService = new BrokerReduceService(new PinotConfiguration(properties));
-    Map<ServerRoutingInstance, DataTable> dataTableMap = new HashMap<>();
+    Map<ServerRoutingInstance, List<DataTable>> dataTableMap = new HashMap<>();
 
     try {
 
       // For multi-threaded BrokerReduceService, we cannot reuse the same data-table.
       byte[] serializedResponse = instanceResponse.toBytes();
       dataTableMap.put(new ServerRoutingInstance("localhost", 1234, TableType.OFFLINE),
-          DataTableFactory.getDataTable(serializedResponse));
+          Collections.singletonList(DataTableFactory.getDataTable(serializedResponse)));
       dataTableMap.put(new ServerRoutingInstance("localhost", 1234, TableType.REALTIME),
-          DataTableFactory.getDataTable(serializedResponse));
+          Collections.singletonList(DataTableFactory.getDataTable(serializedResponse)));
     } catch (Exception e) {
       Utils.rethrowException(e);
     }

@@ -19,6 +19,9 @@
 package org.apache.pinot.core.query.reduce;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.pinot.common.metrics.BrokerMeter;
 import org.apache.pinot.common.metrics.BrokerMetrics;
 import org.apache.pinot.common.metrics.BrokerTimer;
+import org.apache.pinot.common.proto.Server;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.PinotQuery;
 import org.apache.pinot.common.request.context.ExpressionContext;
@@ -40,6 +44,7 @@ import org.apache.pinot.common.response.broker.ResultTable;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.DataTable;
 import org.apache.pinot.common.utils.DataTable.MetadataKey;
+import org.apache.pinot.core.common.datatable.DataTableFactory;
 import org.apache.pinot.core.query.request.context.QueryContext;
 import org.apache.pinot.core.query.request.context.utils.BrokerRequestToQueryContextConverter;
 import org.apache.pinot.core.transport.ServerRoutingInstance;
@@ -121,7 +126,7 @@ public class BrokerReduceService {
   }
 
   public BrokerResponseNative reduceOnDataTable(BrokerRequest brokerRequest,
-      Map<ServerRoutingInstance, DataTable> dataTableMap, long reduceTimeOutMs, @Nullable BrokerMetrics brokerMetrics) {
+      Map<ServerRoutingInstance, List<DataTable>> dataTableMap, long reduceTimeOutMs, @Nullable BrokerMetrics brokerMetrics) {
     if (dataTableMap.isEmpty()) {
       // Empty response.
       return BrokerResponseNative.empty();
@@ -152,91 +157,95 @@ public class BrokerReduceService {
     DataSchema cachedDataSchema = null;
 
     // Process server response metadata.
-    Iterator<Map.Entry<ServerRoutingInstance, DataTable>> iterator = dataTableMap.entrySet().iterator();
+    Iterator<Map.Entry<ServerRoutingInstance, List<DataTable>>> iterator = dataTableMap.entrySet().iterator();
     while (iterator.hasNext()) {
-      Map.Entry<ServerRoutingInstance, DataTable> entry = iterator.next();
-      DataTable dataTable = entry.getValue();
-      Map<String, String> metadata = dataTable.getMetadata();
+      Map.Entry<ServerRoutingInstance, List<DataTable>> entry = iterator.next();
+      // our convention is the last DataTable always contains the metadata block.
+      List<DataTable> dataTables = entry.getValue();
+      if (dataTables.size() > 0) {
+        DataTable metadataBlock = dataTables.get(dataTables.size() - 1);
+        Map<String, String> metadata = metadataBlock.getMetadata();
 
-      // Reduce on trace info.
-      if (enableTrace) {
-        brokerResponseNative.getTraceInfo()
-            .put(entry.getKey().getHostname(), metadata.get(MetadataKey.TRACE_INFO.getName()));
-      }
-
-      // Reduce on exceptions.
-      Map<Integer, String> exceptions = dataTable.getExceptions();
-      for (int key : exceptions.keySet()) {
-        processingExceptions.add(new QueryProcessingException(key, exceptions.get(key)));
-      }
-
-      // Reduce on execution statistics.
-      String numDocsScannedString = metadata.get(MetadataKey.NUM_DOCS_SCANNED.getName());
-      if (numDocsScannedString != null) {
-        numDocsScanned += Long.parseLong(numDocsScannedString);
-      }
-      String numEntriesScannedInFilterString = metadata.get(MetadataKey.NUM_ENTRIES_SCANNED_IN_FILTER.getName());
-      if (numEntriesScannedInFilterString != null) {
-        numEntriesScannedInFilter += Long.parseLong(numEntriesScannedInFilterString);
-      }
-      String numEntriesScannedPostFilterString = metadata.get(MetadataKey.NUM_ENTRIES_SCANNED_POST_FILTER.getName());
-      if (numEntriesScannedPostFilterString != null) {
-        numEntriesScannedPostFilter += Long.parseLong(numEntriesScannedPostFilterString);
-      }
-      String numSegmentsQueriedString = metadata.get(MetadataKey.NUM_SEGMENTS_QUERIED.getName());
-      if (numSegmentsQueriedString != null) {
-        numSegmentsQueried += Long.parseLong(numSegmentsQueriedString);
-      }
-
-      String numSegmentsProcessedString = metadata.get(MetadataKey.NUM_SEGMENTS_PROCESSED.getName());
-      if (numSegmentsProcessedString != null) {
-        numSegmentsProcessed += Long.parseLong(numSegmentsProcessedString);
-      }
-      String numSegmentsMatchedString = metadata.get(MetadataKey.NUM_SEGMENTS_MATCHED.getName());
-      if (numSegmentsMatchedString != null) {
-        numSegmentsMatched += Long.parseLong(numSegmentsMatchedString);
-      }
-
-      String numConsumingString = metadata.get(MetadataKey.NUM_CONSUMING_SEGMENTS_PROCESSED.getName());
-      if (numConsumingString != null) {
-        numConsumingSegmentsProcessed += Long.parseLong(numConsumingString);
-      }
-
-      String minConsumingFreshnessTimeMsString = metadata.get(MetadataKey.MIN_CONSUMING_FRESHNESS_TIME_MS.getName());
-      if (minConsumingFreshnessTimeMsString != null) {
-        minConsumingFreshnessTimeMs =
-            Math.min(Long.parseLong(minConsumingFreshnessTimeMsString), minConsumingFreshnessTimeMs);
-      }
-
-      String threadCpuTimeNsString = metadata.get(MetadataKey.THREAD_CPU_TIME_NS.getName());
-      if (threadCpuTimeNsString != null) {
-        if (entry.getKey().getTableType() == TableType.OFFLINE) {
-          offlineThreadCpuTimeNs += Long.parseLong(threadCpuTimeNsString);
-        } else {
-          realtimeThreadCpuTimeNs += Long.parseLong(threadCpuTimeNsString);
+        // Reduce on trace info.
+        if (enableTrace) {
+          brokerResponseNative.getTraceInfo().put(entry.getKey().getHostname(), metadata.get(MetadataKey.TRACE_INFO.getName()));
         }
-      }
 
-      String numTotalDocsString = metadata.get(MetadataKey.TOTAL_DOCS.getName());
-      if (numTotalDocsString != null) {
-        numTotalDocs += Long.parseLong(numTotalDocsString);
-      }
-      numGroupsLimitReached |= Boolean.parseBoolean(metadata.get(MetadataKey.NUM_GROUPS_LIMIT_REACHED.getName()));
+        // Reduce on exceptions.
+        Map<Integer, String> exceptions = metadataBlock.getExceptions();
+        for (int key : exceptions.keySet()) {
+          processingExceptions.add(new QueryProcessingException(key, exceptions.get(key)));
+        }
 
-      // After processing the metadata, remove data tables without data rows inside.
-      DataSchema dataSchema = dataTable.getDataSchema();
-      if (dataSchema == null) {
-        iterator.remove();
-      } else {
-        // Try to cache a data table with data rows inside, or cache one with data schema inside.
-        if (dataTable.getNumberOfRows() == 0) {
-          if (cachedDataSchema == null) {
-            cachedDataSchema = dataSchema;
+        // Reduce on execution statistics.
+        String numDocsScannedString = metadata.get(MetadataKey.NUM_DOCS_SCANNED.getName());
+        if (numDocsScannedString != null) {
+          numDocsScanned += Long.parseLong(numDocsScannedString);
+        }
+        String numEntriesScannedInFilterString = metadata.get(MetadataKey.NUM_ENTRIES_SCANNED_IN_FILTER.getName());
+        if (numEntriesScannedInFilterString != null) {
+          numEntriesScannedInFilter += Long.parseLong(numEntriesScannedInFilterString);
+        }
+        String numEntriesScannedPostFilterString = metadata.get(MetadataKey.NUM_ENTRIES_SCANNED_POST_FILTER.getName());
+        if (numEntriesScannedPostFilterString != null) {
+          numEntriesScannedPostFilter += Long.parseLong(numEntriesScannedPostFilterString);
+        }
+        String numSegmentsQueriedString = metadata.get(MetadataKey.NUM_SEGMENTS_QUERIED.getName());
+        if (numSegmentsQueriedString != null) {
+          numSegmentsQueried += Long.parseLong(numSegmentsQueriedString);
+        }
+
+        String numSegmentsProcessedString = metadata.get(MetadataKey.NUM_SEGMENTS_PROCESSED.getName());
+        if (numSegmentsProcessedString != null) {
+          numSegmentsProcessed += Long.parseLong(numSegmentsProcessedString);
+        }
+        String numSegmentsMatchedString = metadata.get(MetadataKey.NUM_SEGMENTS_MATCHED.getName());
+        if (numSegmentsMatchedString != null) {
+          numSegmentsMatched += Long.parseLong(numSegmentsMatchedString);
+        }
+
+        String numConsumingString = metadata.get(MetadataKey.NUM_CONSUMING_SEGMENTS_PROCESSED.getName());
+        if (numConsumingString != null) {
+          numConsumingSegmentsProcessed += Long.parseLong(numConsumingString);
+        }
+
+        String minConsumingFreshnessTimeMsString = metadata.get(MetadataKey.MIN_CONSUMING_FRESHNESS_TIME_MS.getName());
+        if (minConsumingFreshnessTimeMsString != null) {
+          minConsumingFreshnessTimeMs = Math.min(Long.parseLong(minConsumingFreshnessTimeMsString), minConsumingFreshnessTimeMs);
+        }
+
+        String threadCpuTimeNsString = metadata.get(MetadataKey.THREAD_CPU_TIME_NS.getName());
+        if (threadCpuTimeNsString != null) {
+          if (entry.getKey().getTableType() == TableType.OFFLINE) {
+            offlineThreadCpuTimeNs += Long.parseLong(threadCpuTimeNsString);
+          } else {
+            realtimeThreadCpuTimeNs += Long.parseLong(threadCpuTimeNsString);
           }
-          iterator.remove();
-        } else {
-          cachedDataSchema = dataSchema;
         }
+
+        String numTotalDocsString = metadata.get(MetadataKey.TOTAL_DOCS.getName());
+        if (numTotalDocsString != null) {
+          numTotalDocs += Long.parseLong(numTotalDocsString);
+        }
+        numGroupsLimitReached |= Boolean.parseBoolean(metadata.get(MetadataKey.NUM_GROUPS_LIMIT_REACHED.getName()));
+
+        DataSchema dataSchema = dataTables.get(0).getDataSchema();
+        cachedDataSchema = dataSchema != null ? dataSchema : cachedDataSchema;
+//        // After processing the metadata, remove data tables without data rows inside.
+//        DataSchema dataSchema = metadataBlock.getDataSchema();
+//        if (dataSchema == null) {
+//          iterator.remove();
+//        } else {
+//          // Try to cache a data table with data rows inside, or cache one with data schema inside.
+//          if (metadataBlock.getNumberOfRows() == 0) {
+//            if (cachedDataSchema == null) {
+//              cachedDataSchema = dataSchema;
+//            }
+//            iterator.remove();
+//          } else {
+//            cachedDataSchema = dataSchema;
+//          }
+//        }
       }
     }
 
@@ -288,6 +297,71 @@ public class BrokerReduceService {
             _groupByTrimThreshold), brokerMetrics);
     updateAlias(queryContext, brokerResponseNative);
     return brokerResponseNative;
+  }
+
+
+  // TODO use this actual streaming API.
+  public BrokerResponseNative reduceOnStreamingServerResponses(BrokerRequest brokerRequest,
+      Map<ServerRoutingInstance, Iterator<Server.ServerResponse>> serverResponseMap, long reduceTimeOutMs,
+      @Nullable BrokerMetrics brokerMetrics) {
+    if (serverResponseMap.isEmpty()) {
+      // Empty response.
+      return BrokerResponseNative.empty();
+    }
+    Map<ServerRoutingInstance, List<DataTable>> dataTableMap = convertIteratorServerResponseToDataTable(serverResponseMap);
+
+    return reduceOnDataTable(brokerRequest, dataTableMap, reduceTimeOutMs, brokerMetrics);
+  }
+
+  // TODO use this actual streaming API.
+//  public BrokerResponseNative reduceOnStreamingServerResponses(BrokerRequest brokerRequest,
+//      Map<ServerRoutingInstance, Iterator<Server.ServerResponse>> serverResponseMap, long reduceTimeOutMs,
+//      @Nullable BrokerMetrics brokerMetrics) {
+//    if (serverResponseMap.isEmpty()) {
+//      // Empty response.
+//      return BrokerResponseNative.empty();
+//    }
+//    String tableName = brokerRequest.getQuerySource().getTableName();
+//    String rawTableName = TableNameBuilder.extractRawTableName(tableName);
+//
+//    BrokerResponseNative brokerResponseNative = new BrokerResponseNative();
+//
+//    // Cache a data schema from data tables (try to cache one with data rows associated with it).
+//    DataSchema cachedDataSchema = null;
+//
+//    // This datatableMap only consist of metadata/exception/dataschema block.
+//    Map<ServerRoutingInstance, DataTable> dataTableMap = new HashMap<>();
+//
+//    QueryContext queryContext = BrokerRequestToQueryContextConverter.convert(brokerRequest);
+//    DataTableReducer dataTableReducer = ResultReducerFactory.getResultReducer(queryContext);
+//    dataTableReducer.reduceOnStreamingResponseAndSetResults(rawTableName, cachedDataSchema, serverResponseMap,
+//        brokerResponseNative,
+//        new DataTableReducerContext(_reduceExecutorService, _maxReduceThreadsPerQuery, reduceTimeOutMs,
+//            _groupByTrimThreshold), brokerMetrics);
+//    updateAlias(queryContext, brokerResponseNative);
+//    return brokerResponseNative;
+//  }
+
+  private Map<ServerRoutingInstance, List<DataTable>> convertIteratorServerResponseToDataTable(
+      Map<ServerRoutingInstance, Iterator<Server.ServerResponse>> serverResponseMap) {
+    Map<ServerRoutingInstance, List<DataTable>> result = new HashMap<>();
+    for (Map.Entry<ServerRoutingInstance, Iterator<Server.ServerResponse>> entry: serverResponseMap.entrySet()) {
+      Iterator<Server.ServerResponse> streamingResponses = entry.getValue();
+      List<DataTable> resultDataTable = new ArrayList<>();
+      while (streamingResponses.hasNext()) {
+        Server.ServerResponse streamingResponse = streamingResponses.next();
+        DataTable dataTable = null;
+        try {
+          dataTable = DataTableFactory.getDataTable(streamingResponse.getPayload().asReadOnlyByteBuffer());
+          resultDataTable.add(dataTable);
+        } catch (Exception e) {
+          // TODO: throw meaningful exception and shutdown gracefully.
+          LOGGER.error("Unable to parse streamingResponse, move on to the next.");
+        }
+      }
+      result.put(entry.getKey(), resultDataTable);
+    }
+    return result;
   }
 
   public void shutDown() {
