@@ -36,6 +36,13 @@ public class QueryContextUtils {
   }
 
   /**
+   * Returns {@code true} if the given query is a selection query, {@code false} otherwise.
+   */
+  public static boolean isSimpleSelectionQuery(QueryContext query) {
+    return query.getAggregationFunctions() == null && query.getOrderByExpressions() == null;
+  }
+
+  /**
    * Returns {@code true} if the given query is an aggregation query, {@code false} otherwise.
    */
   public static boolean isAggregationQuery(QueryContext query) {

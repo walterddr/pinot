@@ -256,7 +256,7 @@ public class InstancePlanMakerImplV2 implements PlanMaker {
       planNodes.add(makeStreamingSegmentPlanNode(indexSegment, queryContext));
     }
     CombinePlanNode combinePlanNode = new CombinePlanNode(planNodes, queryContext, executorService, streamObserver);
-    if (QueryContextUtils.isSelectionQuery(queryContext)) {
+    if (QueryContextUtils.isSimpleSelectionQuery(queryContext)) {
       return new GlobalPlanImplV0(new InstanceResponsePlanNode(combinePlanNode, indexSegments, Collections.emptyList()));
     } else {
       return new GlobalPlanImplV0(new StreamingInstanceResponsePlanNode(
@@ -266,7 +266,7 @@ public class InstancePlanMakerImplV2 implements PlanMaker {
 
   @Override
   public PlanNode makeStreamingSegmentPlanNode(IndexSegment indexSegment, QueryContext queryContext) {
-    if (!QueryContextUtils.isSelectionQuery(queryContext)) {
+    if (!QueryContextUtils.isSimpleSelectionQuery(queryContext)) {
       return makeSegmentPlanNode(indexSegment, queryContext);
     } else {
       // Selection-only query can be directly stream back

@@ -150,6 +150,9 @@ public class IntermediateResultsBlock implements Block {
     this(QueryException.QUERY_EXECUTION_ERROR, e);
   }
 
+  protected IntermediateResultsBlock(DataTable dataTable) {
+  }
+
   @Nullable
   public DataSchema getDataSchema() {
     return _dataSchema;
@@ -325,6 +328,10 @@ public class IntermediateResultsBlock implements Block {
     return getMetadataDataTable();
   }
 
+  public DataTable getMetadataDataTable() {
+    return attachMetadataToDataTable(DataTableBuilder.getEmptyDataTable());
+  }
+
   private DataTable getResultDataTable()
       throws IOException {
     DataTableBuilder dataTableBuilder = new DataTableBuilder(_dataSchema);
@@ -449,10 +456,6 @@ public class IntermediateResultsBlock implements Block {
     DataTable dataTable = dataTableBuilder.build();
 
     return attachMetadataToDataTable(dataTable);
-  }
-
-  private DataTable getMetadataDataTable() {
-    return attachMetadataToDataTable(DataTableBuilder.getEmptyDataTable());
   }
 
   private DataTable attachMetadataToDataTable(DataTable dataTable) {

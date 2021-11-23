@@ -20,17 +20,14 @@ package org.apache.pinot.core.operator;
 
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import org.apache.pinot.common.proto.Server;
 import org.apache.pinot.common.utils.DataTable;
-import org.apache.pinot.common.utils.DataTable.MetadataKey;
 import org.apache.pinot.core.common.datatable.DataTableUtils;
 import org.apache.pinot.core.operator.blocks.InstanceResponseBlock;
 import org.apache.pinot.core.operator.blocks.IntermediateResultsBlock;
 import org.apache.pinot.core.operator.combine.BaseCombineOperator;
 import org.apache.pinot.core.operator.streaming.StreamingResponseUtils;
-import org.apache.pinot.core.query.request.context.ThreadTimer;
 import org.apache.pinot.segment.spi.FetchContext;
 import org.apache.pinot.segment.spi.IndexSegment;
 
@@ -50,10 +47,10 @@ public class StreamingInstanceResponseOperator extends InstanceResponseOperator 
     InstanceResponseBlock nextBlock = super.getNextBlock();
     try {
       _streamObserver.onNext(StreamingResponseUtils.getDataResponse(nextBlock));
-      // TODO: return the actual metadata
       DataTable instanceResponseDataTable = nextBlock.getInstanceResponseDataTable();
-      return new InstanceResponseBlock(new IntermediateResultsBlock(instanceResponseDataTable.getDataSchema(),
-          Collections.emptyList()));
+      // return a metadata-only block.
+      DataTable dataTable = DataTableUtils.constructMetadataOnlyDataTable(instanceResponseDataTable);
+      return new InstanceResponseBlock(dataTable);
     } catch (IOException e) {
       return new InstanceResponseBlock(new IntermediateResultsBlock());
     }

@@ -536,12 +536,14 @@ public class GroupByDataTableReducer implements DataTableReducer {
     String[] columnNames = new String[_numAggregationFunctions];
     Map<String, Object>[] intermediateResultMaps = new Map[_numAggregationFunctions];
     for (DataTable dataTable : dataTables) {
-      for (int i = 0; i < _numAggregationFunctions; i++) {
-        if (columnNames[i] == null) {
-          columnNames[i] = dataTable.getString(i, 0);
-          intermediateResultMaps[i] = dataTable.getObject(i, 1);
-        } else {
-          mergeResultMap(intermediateResultMaps[i], dataTable.getObject(i, 1), _aggregationFunctions[i]);
+      if (dataTable.getNumberOfRows() > 0) {
+        for (int i = 0; i < _numAggregationFunctions; i++) {
+          if (columnNames[i] == null) {
+            columnNames[i] = dataTable.getString(i, 0);
+            intermediateResultMaps[i] = dataTable.getObject(i, 1);
+          } else {
+            mergeResultMap(intermediateResultMaps[i], dataTable.getObject(i, 1), _aggregationFunctions[i]);
+          }
         }
       }
     }
