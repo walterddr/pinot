@@ -80,9 +80,11 @@ public class DistinctDataTableReducer implements DataTableReducer {
         .stream().flatMap(List::stream).collect(Collectors.toList());
 
     for (DataTable dataTable : dataTables) {
-      DistinctTable distinctTable = dataTable.getObject(0, 0);
-      if (!distinctTable.isEmpty()) {
-        nonEmptyDistinctTables.add(distinctTable);
+      if (dataTable.getNumberOfRows() > 0) {
+        DistinctTable distinctTable = dataTable.getObject(0, 0);
+        if (!distinctTable.isEmpty()) {
+          nonEmptyDistinctTables.add(distinctTable);
+        }
       }
     }
 
