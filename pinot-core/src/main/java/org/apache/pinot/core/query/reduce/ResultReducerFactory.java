@@ -68,11 +68,29 @@ public final class ResultReducerFactory {
   }
 
   public static StreamingReducer getStreamingReducer(QueryContext queryContext) {
-    if (!QueryContextUtils.isSelectionQuery(queryContext) || queryContext.getOrderByExpressions() != null) {
-      throw new UnsupportedOperationException("Only selection queries are supported");
+    AggregationFunction[] aggregationFunctions = queryContext.getAggregationFunctions();
+    if (aggregationFunctions == null) {
+      if (queryContext.getOrderByExpressions() != null) {
+        throw new UnsupportedOperationException("Only selection queries are supported");
+      }
+      // Simple election query
+      return new StreamingSelectionOnlyReducer(queryContext);
     } else {
-      // Selection query
-      return new SelectionOnlyStreamingReducer(queryContext);
+      // Aggregation query
+      if (queryContext.getGroupByExpressions() == null) {
+        // Aggregation only query
+        if (aggregationFunctions.length == 1 && aggregationFunctions[0].getType() == AggregationFunctionType.DISTINCT) {
+          // Distinct query
+          return new StreamingDistinctDataTableReducer(queryContext, (DistinctAggregationFunction) aggregationFunctions[0]);
+        } else {
+          return new StreamingAggregationDataTableReducer(queryContext);
+        }
+      } else if (GapfillUtils.isPostAggregateGapfill(queryContext)) {
+        throw new UnsupportedOperationException("unsupported!");
+      } else {
+        // Aggregation group-by query
+        return new StreamingGroupByDataTableReducer(queryContext);
+      }
     }
   }
 }
