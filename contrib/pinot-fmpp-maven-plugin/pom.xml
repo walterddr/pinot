@@ -36,7 +36,7 @@
   <packaging>maven-plugin</packaging>
   <properties>
     <pinot.root>${basedir}/../..</pinot.root>
-    <maven.version>3.3.3</maven.version>
+    <maven.version>3.8.6</maven.version>
     <fmpp.version>0.9.16</fmpp.version>
     <freemarker.version>2.3.28</freemarker.version>
   </properties>
