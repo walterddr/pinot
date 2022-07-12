@@ -40,7 +40,7 @@
     <spark.version>3.2.1</spark.version>
     <scala.minor.version>2.12.15</scala.minor.version>
     <spark3.jackson.version>2.12.6</spark3.jackson.version>
-    <commons-lang3.version>3.11</commons-lang3.version>
+    <commons-lang3.version>3.12.0</commons-lang3.version>
   </properties>
 
   <dependencies>
