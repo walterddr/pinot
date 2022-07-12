@@ -124,7 +124,7 @@
       <plugin>
         <groupId>net.nicoulaj.maven.plugins</groupId>
         <artifactId>checksum-maven-plugin</artifactId>
-        <version>1.8</version>
+        <version>1.11</version>
         <executions>
           <execution>
             <goals>
@@ -194,10 +194,6 @@
                 <relocation>
                   <pattern>org.apache.parquet</pattern>
                   <shadedPattern>${shade.prefix}.org.apache.parquet</shadedPattern>
-                </relocation>
-                <relocation>
-                  <pattern>org.apache.commons</pattern>
-                  <shadedPattern>${shade.prefix}.org.apache.commons</shadedPattern>
                 </relocation>
               </relocations>
             </configuration>
