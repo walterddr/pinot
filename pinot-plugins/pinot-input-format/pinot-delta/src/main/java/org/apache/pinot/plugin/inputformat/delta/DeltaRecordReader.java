@@ -18,29 +18,30 @@
  */
 package org.apache.pinot.plugin.inputformat.delta;
 
+import io.delta.standalone.DeltaLog;
+import io.delta.standalone.data.CloseableIterator;
+import io.delta.standalone.data.RowRecord;
+import io.delta.standalone.internal.data.CloseableParquetDataIterator;
+import io.delta.standalone.types.BooleanType;
+import io.delta.standalone.types.ByteType;
+import io.delta.standalone.types.DataType;
+import io.delta.standalone.types.DoubleType;
+import io.delta.standalone.types.FloatType;
+import io.delta.standalone.types.IntegerType;
+import io.delta.standalone.types.LongType;
+import io.delta.standalone.types.StringType;
+import io.delta.standalone.types.StructField;
+import io.delta.standalone.types.StructType;
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import javax.annotation.Nullable;
-
-import io.delta.standalone.data.CloseableIterator;
-import io.delta.standalone.types.StructField;
-import io.delta.standalone.types.DataType;
-import io.delta.standalone.types.StringType;
-import io.delta.standalone.types.LongType;
-import io.delta.standalone.types.BooleanType;
-import io.delta.standalone.types.FloatType;
-import io.delta.standalone.types.DoubleType;
-import io.delta.standalone.types.ByteType;
-import io.delta.standalone.types.IntegerType;
 import org.apache.hadoop.conf.Configuration;
-
-import io.delta.standalone.DeltaLog;
 import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.RecordReader;
 import org.apache.pinot.spi.data.readers.RecordReaderConfig;
-import io.delta.standalone.data.RowRecord;
 
 public class DeltaRecordReader implements RecordReader {
   private File _dataFile;
@@ -48,6 +49,9 @@ public class DeltaRecordReader implements RecordReader {
   private CloseableIterator<RowRecord> _iterator;
 
   private Set<String> _fieldsToRead;
+
+  private StructType _schema;
+  private Set<String> _fieldNames;
 
   @Override
   public void init(File dataFile, @Nullable Set<String> fieldsToRead, @Nullable RecordReaderConfig recordReaderConfig)
@@ -58,6 +62,8 @@ public class DeltaRecordReader implements RecordReader {
     DeltaLog log = DeltaLog.forTable(new Configuration(), dataFile.getPath());
 
     _iterator = log.update().open();
+    _schema = ((CloseableParquetDataIterator) _iterator).schema();
+    _fieldNames = new HashSet<>(Arrays.asList(_schema.getFieldNames()));
     _fieldsToRead = (fieldsToRead == null) ? new HashSet<>() : fieldsToRead;
   }
 
@@ -90,25 +96,27 @@ public class DeltaRecordReader implements RecordReader {
     }
 
     for (String fieldName: _fieldsToRead) {
-      final DataType dataType = record.getSchema().get(fieldName).getDataType();
+      if (_fieldNames.contains(fieldName)) {
+        final DataType dataType = record.getSchema().get(fieldName).getDataType();
 
-      // handles only primitive types for now; hopefully the pinot API handles any null values
-      if (dataType instanceof StringType) {
-        reuse.putValue(fieldName, record.getString(fieldName));
-      } else if (dataType instanceof BooleanType) {
-        reuse.putValue(fieldName, record.getBoolean(fieldName));
-      } else if (dataType instanceof IntegerType) {
-        reuse.putValue(fieldName, record.getInt(fieldName));
-      } else if (dataType instanceof DoubleType) {
-        reuse.putValue(fieldName, record.getDouble(fieldName));
-      } else if (dataType instanceof FloatType) {
-        reuse.putValue(fieldName, record.getFloat(fieldName));
-      } else if (dataType instanceof ByteType) {
-        reuse.putValue(fieldName, record.getByte(fieldName));
-      } else if (dataType instanceof LongType) {
-        reuse.putValue(fieldName, record.getLong(fieldName));
-      } else {
-        throw new IOException("unknown data type " + dataType.getSimpleString());
+        // handles only primitive types for now; hopefully the pinot API handles any null values
+        if (dataType instanceof StringType) {
+          reuse.putValue(fieldName, record.getString(fieldName));
+        } else if (dataType instanceof BooleanType) {
+          reuse.putValue(fieldName, record.getBoolean(fieldName));
+        } else if (dataType instanceof IntegerType) {
+          reuse.putValue(fieldName, record.getInt(fieldName));
+        } else if (dataType instanceof DoubleType) {
+          reuse.putValue(fieldName, record.getDouble(fieldName));
+        } else if (dataType instanceof FloatType) {
+          reuse.putValue(fieldName, record.getFloat(fieldName));
+        } else if (dataType instanceof ByteType) {
+          reuse.putValue(fieldName, record.getByte(fieldName));
+        } else if (dataType instanceof LongType) {
+          reuse.putValue(fieldName, record.getLong(fieldName));
+        } else {
+          throw new IOException("unknown data type " + dataType.getSimpleString());
+        }
       }
     }
 

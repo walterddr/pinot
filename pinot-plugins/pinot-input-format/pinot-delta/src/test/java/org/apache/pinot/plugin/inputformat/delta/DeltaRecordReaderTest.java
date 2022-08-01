@@ -1,8 +1,21 @@
 package org.apache.pinot.plugin.inputformat.delta;
 
 import io.delta.standalone.DeltaLog;
+import io.delta.standalone.Operation;
 import io.delta.standalone.OptimisticTransaction;
 import io.delta.standalone.actions.Action;
+import io.delta.standalone.actions.AddFile;
+import io.delta.standalone.actions.Metadata;
+import io.delta.standalone.types.BooleanType;
+import io.delta.standalone.types.ByteType;
+import io.delta.standalone.types.DataType;
+import io.delta.standalone.types.DoubleType;
+import io.delta.standalone.types.FloatType;
+import io.delta.standalone.types.IntegerType;
+import io.delta.standalone.types.LongType;
+import io.delta.standalone.types.StringType;
+import io.delta.standalone.types.StructField;
+import io.delta.standalone.types.StructType;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -12,16 +25,14 @@ import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.pinot.plugin.inputformat.avro.AvroUtils;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.readers.AbstractRecordReaderTest;
 import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.RecordReader;
-import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.pinot.plugin.inputformat.avro.AvroUtils;
-import io.delta.standalone.Operation;
-import io.delta.standalone.actions.AddFile;
-import org.apache.hadoop.conf.Configuration;
 import org.testng.Assert;
 
 
@@ -35,6 +46,14 @@ public class DeltaRecordReaderTest extends AbstractRecordReaderTest {
     DeltaRecordReader recordReader = new DeltaRecordReader();
     recordReader.init(_dataFile, _sourceFields, null);
     return recordReader;
+  }
+
+  @Override
+  protected org.apache.pinot.spi.data.Schema getPinotSchema() {
+    return new org.apache.pinot.spi.data.Schema.SchemaBuilder().setSchemaName("SampleRecord")
+        .addSingleValueDimension("id", FieldSpec.DataType.INT)
+        .addSingleValueDimension("name", FieldSpec.DataType.STRING)
+        .addSingleValueDimension("email", FieldSpec.DataType.STRING).build();
   }
 
   @Override
@@ -64,7 +83,40 @@ public class DeltaRecordReaderTest extends AbstractRecordReaderTest {
 
     DeltaLog log = DeltaLog.forTable(new Configuration(), _dataFile.getPath());
     OptimisticTransaction txn = log.startTransaction();
+    Metadata metadata = Metadata.builder()
+        .schema(toStructureType(schema))
+        .build();
+    txn.updateMetadata(metadata);
     txn.commit(totalCommitFiles, new Operation(Operation.Name.UPDATE), "Test");
+  }
+
+  private StructType toStructureType(Schema avroSchema) {
+    List<StructField> fields = new ArrayList<>();
+    for (Schema.Field field : avroSchema.getFields()) {
+      fields.add(new StructField(field.name(), toDataType(field.schema())));
+    }
+    return new StructType(fields.toArray(new StructField[]{}));
+  }
+
+  private DataType toDataType(Schema schema) {
+    switch (schema.getType()) {
+      case STRING:
+        return new StringType();
+      case BYTES:
+        return new ByteType();
+      case INT:
+        return new IntegerType();
+      case LONG:
+        return new LongType();
+      case FLOAT:
+        return new FloatType();
+      case DOUBLE:
+        return new DoubleType();
+      case BOOLEAN:
+        return new BooleanType();
+      default:
+        throw new UnsupportedOperationException();
+    }
   }
 
   @Override
