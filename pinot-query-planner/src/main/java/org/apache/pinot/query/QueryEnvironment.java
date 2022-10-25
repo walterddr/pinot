@@ -133,8 +133,8 @@ public class QueryEnvironment {
    * @return a dispatchable query plan
    */
   public QueryPlan planQuery(String sqlQuery, SqlNodeAndOptions sqlNodeAndOptions, long requestId) {
-    try (PlannerContext plannerContext = new PlannerContext(_config, _catalogReader, _typeFactory, _hepProgram)) {
-      plannerContext.setOptions(sqlNodeAndOptions.getOptions());
+    try (PlannerContext plannerContext = new PlannerContext(_config, _catalogReader, _typeFactory, _hepProgram,
+        sqlNodeAndOptions.getOptions())) {
       RelRoot relRoot = compileQuery(sqlNodeAndOptions.getSqlNode(), plannerContext);
       return toDispatchablePlan(relRoot, plannerContext, requestId);
     } catch (CalciteContextException e) {
@@ -157,9 +157,9 @@ public class QueryEnvironment {
    * @return the explained query plan.
    */
   public String explainQuery(String sqlQuery, SqlNodeAndOptions sqlNodeAndOptions) {
-    try (PlannerContext plannerContext = new PlannerContext(_config, _catalogReader, _typeFactory, _hepProgram)) {
+    try (PlannerContext plannerContext = new PlannerContext(_config, _catalogReader, _typeFactory, _hepProgram,
+        sqlNodeAndOptions.getOptions())) {
       SqlExplain explain = (SqlExplain) sqlNodeAndOptions.getSqlNode();
-      plannerContext.setOptions(sqlNodeAndOptions.getOptions());
       RelRoot relRoot = compileQuery(explain.getExplicandum(), plannerContext);
       SqlExplainFormat format = explain.getFormat() == null ? SqlExplainFormat.DOT : explain.getFormat();
       SqlExplainLevel level =

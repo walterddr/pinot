@@ -18,8 +18,8 @@
  */
 package org.apache.pinot.query.context;
 
+import java.util.Collections;
 import java.util.Map;
-import org.apache.calcite.plan.Contexts;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.hep.HepProgram;
 import org.apache.calcite.prepare.PlannerImpl;
@@ -48,9 +48,15 @@ public class PlannerContext implements AutoCloseable {
 
   public PlannerContext(FrameworkConfig config, Prepare.CatalogReader catalogReader, RelDataTypeFactory typeFactory,
       HepProgram hepProgram) {
+    this(config, catalogReader, typeFactory, hepProgram, Collections.emptyMap());
+  }
+
+  public PlannerContext(FrameworkConfig config, Prepare.CatalogReader catalogReader, RelDataTypeFactory typeFactory,
+      HepProgram hepProgram, Map<String, String> options) {
     _planner = new PlannerImpl(config);
     _validator = new Validator(config.getOperatorTable(), catalogReader, typeFactory);
-    _relOptPlanner = new LogicalPlanner(hepProgram, Contexts.EMPTY_CONTEXT);
+    _options = options;
+    _relOptPlanner = new LogicalPlanner(hepProgram, new PinotRelOptPlannerContext(_options));
   }
 
   public PlannerImpl getPlanner() {
