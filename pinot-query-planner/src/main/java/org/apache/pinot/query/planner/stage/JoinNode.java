@@ -20,6 +20,7 @@ package org.apache.pinot.query.planner.stage;
 
 import java.util.List;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.pinot.common.datablock.BaseDataBlock;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.query.planner.logical.RexExpression;
 import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
@@ -34,6 +35,8 @@ public class JoinNode extends AbstractStageNode {
   private JoinKeys _joinKeys;
   @ProtoProperties
   private List<RexExpression> _joinClause;
+
+  private transient BaseDataBlock _semiJoinResult;
 
   public JoinNode(int stageId) {
     super(stageId);
@@ -67,6 +70,14 @@ public class JoinNode extends AbstractStageNode {
   @Override
   public <T, C> T visit(StageNodeVisitor<T, C> visitor, C context) {
     return visitor.visitJoin(this, context);
+  }
+
+  public BaseDataBlock getSemiJoinResult() {
+    return _semiJoinResult;
+  }
+
+  public void setSemiJoinResult(BaseDataBlock semiJoinResult) {
+    _semiJoinResult = semiJoinResult;
   }
 
   public static class JoinKeys {

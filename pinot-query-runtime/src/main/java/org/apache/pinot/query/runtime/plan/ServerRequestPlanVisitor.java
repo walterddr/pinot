@@ -18,13 +18,18 @@
  */
 package org.apache.pinot.query.runtime.plan;
 
+import com.clearspring.analytics.util.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.pinot.common.datablock.BaseDataBlock;
+import org.apache.pinot.common.function.TransformFunctionType;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.DataSource;
 import org.apache.pinot.common.request.Expression;
@@ -32,11 +37,17 @@ import org.apache.pinot.common.request.InstanceRequest;
 import org.apache.pinot.common.request.PinotQuery;
 import org.apache.pinot.common.request.QuerySource;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
+import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.request.RequestUtils;
+import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.query.optimizer.QueryOptimizer;
+import org.apache.pinot.core.query.utils.idset.IdSet;
+import org.apache.pinot.core.query.utils.idset.IdSets;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
+import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.parser.CalciteRexExpressionParser;
+import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
 import org.apache.pinot.query.planner.stage.AggregateNode;
 import org.apache.pinot.query.planner.stage.FilterNode;
 import org.apache.pinot.query.planner.stage.JoinNode;
@@ -49,10 +60,13 @@ import org.apache.pinot.query.planner.stage.StageNodeVisitor;
 import org.apache.pinot.query.planner.stage.TableScanNode;
 import org.apache.pinot.query.planner.stage.ValueNode;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
+import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
+import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
 import org.apache.pinot.query.runtime.plan.server.ServerPlanRequestContext;
 import org.apache.pinot.query.service.QueryConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.TableType;
+import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.CommonConstants;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
@@ -174,6 +188,29 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
   @Override
   public Void visitJoin(JoinNode node, ServerPlanRequestContext context) {
     visitChildren(node, context);
+    // visit only the static side.
+    StageNode staticSide = node.getInputs().get(0);
+    StageNode dynamicSide = node.getInputs().get(1);
+    if (staticSide instanceof MailboxReceiveNode) {
+      dynamicSide = node.getInputs().get(0);
+      staticSide = node.getInputs().get(1);
+    }
+    staticSide.visit(this, context);
+
+    // rewrite context for JOIN as dynamic filter
+    // step 1: get the other-side's result.
+    MailboxReceiveNode dynamicMailbox = (MailboxReceiveNode) dynamicSide;
+    List<ServerInstance> sendingInstances = context.getMetadataMap().get(dynamicMailbox.getSenderStageId())
+        .getServerInstances();
+    MailboxReceiveOperator mailboxReceiveOperator = new MailboxReceiveOperator(context.getMailboxService(),
+         sendingInstances, dynamicMailbox.getExchangeType(), context.getHostName(), context.getPort(),
+        context.getRequestId(), dynamicMailbox.getSenderStageId(), context.getTimeoutMs());
+    TransferableBlock block = attachDynamicOperatorResults(mailboxReceiveOperator, dynamicMailbox.getDataSchema());
+    context.setDynamicOperatorResult(block);
+    // step 2: write filter expression
+    attachDynamicFilter(context.getPinotQuery(), node.getJoinKeys(), block);
+    // step 3: write project expression
+    // TODO: write dynamic project
     return _aVoid;
   }
 
@@ -238,6 +275,60 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     }
   }
 
+
+  /**
+   * Helper method to attach the dynamic filter to the given PinotQuery.
+   */
+  private static void attachDynamicFilter(PinotQuery pinotQuery, JoinNode.JoinKeys joinKeys,
+      TransferableBlock dataBlock) {
+    FieldSelectionKeySelector leftSelector = (FieldSelectionKeySelector) joinKeys.getLeftJoinKeySelector();
+    FieldSelectionKeySelector rightSelector = (FieldSelectionKeySelector) joinKeys.getRightJoinKeySelector();
+    List<Expression> expressions = new ArrayList<>();
+    for (int i = 0; i < leftSelector.getColumnIndices().size(); i++) {
+      Expression leftExpr = pinotQuery.getSelectList().get(leftSelector.getColumnIndices().get(i));
+      int rightIdx = rightSelector.getColumnIndices().get(i);
+      Expression dynamicFilter = RequestUtils.getFunctionExpression(TransformFunctionType.INIDSET.name());
+      dynamicFilter.getFunctionCall().setOperands(Arrays.asList(leftExpr, computeIdSet(dataBlock, rightIdx)));
+      Expression filterExpr = RequestUtils.getFunctionExpression(FilterKind.EQUALS.name());
+      filterExpr.getFunctionCall().setOperands(Arrays.asList(dynamicFilter, RequestUtils.getLiteralExpression(true)));
+      expressions.add(filterExpr);
+    }
+    attachFilterExpression(pinotQuery, FilterKind.AND, expressions);
+  }
+
+  private static Expression computeIdSet(TransferableBlock block, int idx) {
+    final DataSchema.ColumnDataType columnDataType = block.getDataSchema().getColumnDataType(idx);
+    final FieldSpec.DataType storedType = columnDataType.getStoredType().toDataType();;
+    IdSet idSet = IdSets.create(columnDataType.toDataType());
+    for (Object[] row : block.getContainer()) {
+      switch (storedType) {
+        case INT:
+          idSet.add((int) row[idx]);
+          break;
+        case LONG:
+          idSet.add((long) row[idx]);
+          break;
+        case FLOAT:
+          idSet.add((float) row[idx]);
+          break;
+        case DOUBLE:
+          idSet.add((double) row[idx]);
+          break;
+        case STRING:
+          idSet.add((String) row[idx]);
+          break;
+        default:
+          throw new IllegalStateException("Illegal SV data type for ID_SET aggregation function: " + storedType);
+      }
+    }
+    try {
+      return RequestUtils.getLiteralExpression(idSet.toBase64String());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+
   /**
    * Helper method to attach the time boundary to the given PinotQuery.
    */
@@ -258,5 +349,34 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     } else {
       pinotQuery.setFilterExpression(timeFilterExpression);
     }
+
+    attachFilterExpression(pinotQuery, FilterKind.AND, Collections.singletonList(timeFilterExpression));
+  }
+
+  private static void attachFilterExpression(PinotQuery pinotQuery, FilterKind attachKind, List<Expression> exprs) {
+    Preconditions.checkState(attachKind == FilterKind.AND || attachKind == FilterKind.OR);
+    Expression filterExpression = pinotQuery.getFilterExpression();
+    List<Expression> arrayList = new ArrayList<>(exprs);
+    if (filterExpression != null) {
+      arrayList.add(filterExpression);
+    }
+    if (arrayList.size() > 1) {
+      Expression attachFilterExpression = RequestUtils.getFunctionExpression(attachKind.name());
+      attachFilterExpression.getFunctionCall().setOperands(arrayList);
+      pinotQuery.setFilterExpression(attachFilterExpression);
+    } else {
+      pinotQuery.setFilterExpression(arrayList.get(0));
+    }
+  }
+
+  private static TransferableBlock attachDynamicOperatorResults(BaseOperator<TransferableBlock> baseOperator,
+      DataSchema dataSchema) {
+    TransferableBlock mergedBlock = new TransferableBlock(new ArrayList<>(), dataSchema, BaseDataBlock.Type.ROW);
+    TransferableBlock block = baseOperator.nextBlock();
+    while (!TransferableBlockUtils.isEndOfStream(block)) {
+      mergedBlock.getContainer().addAll(block.getContainer());
+      block = baseOperator.nextBlock();
+    }
+    return mergedBlock;
   }
 }

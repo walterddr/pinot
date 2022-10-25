@@ -37,6 +37,9 @@ public class PinotQueryRuleSets {
           EnumerableRules.ENUMERABLE_PROJECT_RULE, EnumerableRules.ENUMERABLE_SORT_RULE,
           EnumerableRules.ENUMERABLE_TABLE_SCAN_RULE,
 
+          // ------------------------------------------------------------------
+          // Calcite core rules
+
           // push a filter into a join
           CoreRules.FILTER_INTO_JOIN,
           // push filter through an aggregation
@@ -93,9 +96,18 @@ public class PinotQueryRuleSets {
           PruneEmptyRules.JOIN_RIGHT_INSTANCE, PruneEmptyRules.PROJECT_INSTANCE, PruneEmptyRules.SORT_INSTANCE,
           PruneEmptyRules.UNION_INSTANCE,
 
+          // ------------------------------------------------------------------
           // Pinot specific rules
+
+          // rules apply before exchange insertion.
           PinotFilterExpandSearchRule.INSTANCE,
+
+          // rules for exchange insertion.
           PinotJoinExchangeNodeInsertRule.INSTANCE,
-          PinotAggregateExchangeNodeInsertRule.INSTANCE
+          PinotAggregateExchangeNodeInsertRule.INSTANCE,
+          PinotSortExchangeNodeInsertRule.INSTANCE,
+
+          // rules apply after exchange insertion.
+          PinotInnerJoinToDynamicFilterRule.INSTANCE
       );
 }

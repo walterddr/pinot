@@ -29,6 +29,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.pinot.core.transport.ServerInstance;
+import org.apache.pinot.query.context.PinotRelOptPlannerContext;
 import org.apache.pinot.query.planner.PlannerUtils;
 import org.apache.pinot.query.planner.QueryPlan;
 import org.apache.pinot.query.planner.StageMetadata;
@@ -103,6 +104,36 @@ public class QueryCompilationTest extends QueryEnvironmentTestBase {
           }
           node = node.getInputs().get(0);
         }
+      }
+    }
+  }
+
+  @Test
+  public void testQueryWithDynamicFilterOption()
+      throws Exception {
+    String query = String.format("SET %s = true; SELECT * FROM a JOIN b ON a.col1 = b.col2",
+        PinotRelOptPlannerContext.USE_DYNAMIC_FILTER);
+    QueryPlan queryPlan = _queryEnvironment.planQuery(query);
+    Assert.assertEquals(queryPlan.getQueryStageMap().size(), 4);
+    Assert.assertEquals(queryPlan.getStageMetadataMap().size(), 4);
+    for (Map.Entry<Integer, StageMetadata> e : queryPlan.getStageMetadataMap().entrySet()) {
+      List<String> tables = e.getValue().getScannedTables();
+      if (tables.size() == 1) {
+        // table scan stages; for tableA it should have 2 hosts, for tableB it should have only 1
+        Assert.assertEquals(
+            e.getValue().getServerInstances().stream().map(ServerInstance::toString).collect(Collectors.toList()),
+            tables.get(0).equals("a") ? ImmutableList.of("Server_localhost_2", "Server_localhost_1")
+                : ImmutableList.of("Server_localhost_1"));
+      } else if (!PlannerUtils.isRootStage(e.getKey())) {
+        // join stage should have both servers used.
+        Assert.assertEquals(
+            e.getValue().getServerInstances().stream().map(ServerInstance::toString).collect(Collectors.toList()),
+            ImmutableList.of("Server_localhost_1", "Server_localhost_2"));
+      } else {
+        // reduce stage should have the reducer instance.
+        Assert.assertEquals(
+            e.getValue().getServerInstances().stream().map(ServerInstance::toString).collect(Collectors.toList()),
+            ImmutableList.of("Server_localhost_3"));
       }
     }
   }

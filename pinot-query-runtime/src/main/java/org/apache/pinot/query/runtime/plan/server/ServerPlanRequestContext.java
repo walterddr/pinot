@@ -38,6 +38,7 @@ public class ServerPlanRequestContext extends PlanRequestContext {
   protected TimeBoundaryInfo _timeBoundaryInfo;
 
   protected PinotQuery _pinotQuery;
+  protected TransferableBlock _dynamicOperatorRes;
   protected InstanceRequest _instanceRequest;
 
   public ServerPlanRequestContext(MailboxService<TransferableBlock> mailboxService, long requestId, int stageId,
@@ -63,5 +64,13 @@ public class ServerPlanRequestContext extends PlanRequestContext {
 
   public InstanceRequest getInstanceRequest() {
     return _instanceRequest;
+  }
+
+  public void setDynamicOperatorResult(TransferableBlock transferableBlock) {
+    _dynamicOperatorRes = transferableBlock;
+  }
+
+  public TransferableBlock getDynamicOperatorResult() {
+    return _dynamicOperatorRes;
   }
 }

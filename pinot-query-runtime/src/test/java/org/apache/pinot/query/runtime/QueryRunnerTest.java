@@ -32,6 +32,11 @@ import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.QueryEnvironmentTestBase;
 import org.apache.pinot.query.QueryServerEnclosure;
 import org.apache.pinot.query.mailbox.GrpcMailboxService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.apache.pinot.common.utils.NamedThreadFactory;
+import org.apache.pinot.core.query.scheduler.resources.ResourceManager;
+import org.apache.pinot.query.context.PinotRelOptPlannerContext;
 import org.apache.pinot.query.planner.QueryPlan;
 import org.apache.pinot.query.planner.stage.MailboxReceiveNode;
 import org.apache.pinot.query.routing.WorkerInstance;
@@ -158,6 +163,8 @@ public class QueryRunnerTest extends QueryRunnerTestBase {
     }
     _mailboxService.shutdown();
   }
+  private static final ExecutorService EXECUTOR_SERVICE = Executors.newFixedThreadPool(
+      ResourceManager.DEFAULT_QUERY_WORKER_THREADS, new NamedThreadFactory("query_server_enclosure"));
 
   @Test(dataProvider = "testDataWithSqlToFinalRowCount")
   public void testSqlWithFinalRowCountChecker(String sql, int expectedRows)
@@ -195,7 +202,9 @@ public class QueryRunnerTest extends QueryRunnerTestBase {
         for (ServerInstance serverInstance : queryPlan.getStageMetadataMap().get(stageId).getServerInstances()) {
           DistributedStagePlan distributedStagePlan =
               QueryDispatcher.constructDistributedStagePlan(queryPlan, stageId, serverInstance);
-          _servers.get(serverInstance).processQuery(distributedStagePlan, requestMetadataMap);
+          EXECUTOR_SERVICE.submit(() -> {
+            _servers.get(serverInstance).processQuery(distributedStagePlan, requestMetadataMap);
+          });
         }
       }
     }
@@ -213,8 +222,9 @@ public class QueryRunnerTest extends QueryRunnerTestBase {
   @DataProvider(name = "testDataWithSqlToFinalRowCount")
   private Object[][] provideTestSqlAndRowCount() {
     return new Object[][] {
-        // using join clause
-        new Object[]{"SELECT * FROM a JOIN b USING (col1)", 15},
+        // using join dynamic filter
+        new Object[]{String.format("SET %s = true; SELECT a.col1, a.col3 FROM a JOIN b ON a.col1 = b.col1 AND a.col3 = b.col3",
+            PinotRelOptPlannerContext.USE_DYNAMIC_FILTER), 15},
 
         // cannot compare with H2 w/o an ORDER BY because ordering is indeterminate
         new Object[]{"SELECT * FROM a LIMIT 2", 2},
