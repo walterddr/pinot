@@ -28,6 +28,7 @@ import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.tools.RelBuilderFactory;
+import org.apache.pinot.query.context.PinotRelOptPlannerContext;
 
 
 /**
@@ -62,8 +63,10 @@ public class PinotJoinExchangeNodeInsertRule extends RelOptRule {
     RelNode leftExchange;
     RelNode rightExchange;
     JoinInfo joinInfo = join.analyzeCondition();
+    PinotRelOptPlannerContext context = (PinotRelOptPlannerContext) call.getPlanner().getContext();
 
-    if (joinInfo.leftKeys.isEmpty()) {
+    if (context.getOptions().containsKey(PinotRelOptPlannerContext.USE_BROADCAST_DISTRIBUTE)
+        || joinInfo.leftKeys.isEmpty()) {
       // when there's no JOIN key, use broadcast.
       leftExchange = LogicalExchange.create(leftInput, RelDistributions.RANDOM_DISTRIBUTED);
       rightExchange = LogicalExchange.create(rightInput, RelDistributions.BROADCAST_DISTRIBUTED);
