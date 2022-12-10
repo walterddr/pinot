@@ -18,14 +18,8 @@
  */
 package org.apache.pinot.query.planner.logical;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import org.apache.calcite.rel.RelDistribution;
-import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
-import org.apache.pinot.query.planner.partitioning.KeySelector;
+import org.apache.pinot.query.context.PlannerContext;
 import org.apache.pinot.query.planner.stage.AggregateNode;
 import org.apache.pinot.query.planner.stage.FilterNode;
 import org.apache.pinot.query.planner.stage.JoinNode;
@@ -39,16 +33,7 @@ import org.apache.pinot.query.planner.stage.TableScanNode;
 import org.apache.pinot.query.planner.stage.ValueNode;
 
 
-/**
- * {@code ShuffleRewriteVisitor} removes unnecessary shuffles from a stage node plan by
- * inspecting whether all data required by a specific subtree are already colocated.
- * a single host. It gathers the information recursively by checking which partitioned
- * data is selected by each node in the tree.
- *
- * <p>The only method that should be used externally is {@link #optimizeShuffles(StageNode)},
- * other public methods are used only by {@link StageNode#visit(StageNodeVisitor, Object)}.
- */
-public class ShuffleRewriteVisitor implements StageNodeVisitor<Set<Integer>, Void> {
+public class ShuffleRewriteVisitor implements StageNodeVisitor<Boolean, PlannerContext> {
 
   /**
    * This method rewrites {@code root} <b>in place</b>, removing any unnecessary shuffles
@@ -56,143 +41,69 @@ public class ShuffleRewriteVisitor implements StageNodeVisitor<Set<Integer>, Voi
    *
    * @param root the root node of the tree to rewrite
    */
-  public static void optimizeShuffles(StageNode root) {
-    root.visit(new ShuffleRewriteVisitor(), null);
+  public static void optimizeShuffles(StageNode root, PlannerContext context) {
+    root.visit(new ShuffleRewriteVisitor(), context);
   }
 
-  /**
-   * Access to this class should only be used via {@link #optimizeShuffles(StageNode)}
-   */
   private ShuffleRewriteVisitor() {
   }
 
   @Override
-  public Set<Integer> visitAggregate(AggregateNode node, Void context) {
-    Set<Integer> oldPartitionKeys = node.getInputs().get(0).visit(this, context);
-    List<RexExpression> groupSet = node.getGroupSet();
-    return deriveNewPartitionKeysFromRexExpressions(groupSet, oldPartitionKeys);
+  public Boolean visitAggregate(AggregateNode node, PlannerContext context) {
+    return node.getInputs().get(0).visit(this, context);
   }
 
   @Override
-  public Set<Integer> visitFilter(FilterNode node, Void context) {
+  public Boolean visitFilter(FilterNode node, PlannerContext context) {
     // filters don't change partition keys
     return node.getInputs().get(0).visit(this, context);
   }
 
   @Override
-  public Set<Integer> visitJoin(JoinNode node, Void context) {
-    Set<Integer> leftPKs = node.getInputs().get(0).visit(this, context);
-    Set<Integer> rightPks = node.getInputs().get(1).visit(this, context);
+  public Boolean visitJoin(JoinNode node, PlannerContext context) {
+    Boolean leftRes = node.getInputs().get(0).visit(this, context);
+    Boolean rightRes = node.getInputs().get(1).visit(this, context);
 
-    // Currently, JOIN criteria is guaranteed to only have one FieldSelectionKeySelector
-    FieldSelectionKeySelector leftJoinKey = (FieldSelectionKeySelector) node.getJoinKeys().getLeftJoinKeySelector();
-    FieldSelectionKeySelector rightJoinKey = (FieldSelectionKeySelector) node.getJoinKeys().getRightJoinKeySelector();
-
-    int leftDataSchemaSize = node.getInputs().get(0).getDataSchema().size();
-    Set<Integer> partitionKeys = new HashSet<>();
-    for (int i = 0; i < leftJoinKey.getColumnIndices().size(); i++) {
-      int leftIdx = leftJoinKey.getColumnIndices().get(i);
-      int rightIdx = rightJoinKey.getColumnIndices().get(i);
-      if (leftPKs.contains(leftIdx)) {
-        partitionKeys.add(leftIdx);
-      }
-      // TODO: enable right key carrying. currently we only support left key carrying b/c of the partition key list
-      // doesn't understand equivalent partition key column or group partition key columns, yet.
-      /*
-      if (rightPks.contains(rightIdx)) {
-        // combined schema will have all the left fields before the right fields
-        // so add the leftDataSchemaSize before adding the key
-        partitionKeys.add(leftDataSchemaSize + rightIdx);
-      }
-      */
-    }
-
-    return partitionKeys;
+    return leftRes && rightRes;
   }
 
   @Override
-  public Set<Integer> visitMailboxReceive(MailboxReceiveNode node, Void context) {
-    Set<Integer> oldPartitionKeys = node.getSender().visit(this, context);
-    KeySelector<Object[], Object[]> selector = node.getPartitionKeySelector();
-
-    if (canSkipShuffle(oldPartitionKeys, selector)) {
+  public Boolean visitMailboxReceive(MailboxReceiveNode node, PlannerContext context) {
+    if (node.getSender().visit(this, context)) {
       node.setExchangeType(RelDistribution.Type.SINGLETON);
-      return oldPartitionKeys;
-    } else if (selector == null) {
-      return new HashSet<>();
-    } else {
-      return new HashSet<>(((FieldSelectionKeySelector) selector).getColumnIndices());
     }
+    return false;
   }
 
   @Override
-  public Set<Integer> visitMailboxSend(MailboxSendNode node, Void context) {
-    Set<Integer> oldPartitionKeys = node.getInputs().get(0).visit(this, context);
-    KeySelector<Object[], Object[]> selector = node.getPartitionKeySelector();
-
-    if (canSkipShuffle(oldPartitionKeys, selector)) {
+  public Boolean visitMailboxSend(MailboxSendNode node, PlannerContext context) {
+    if (node.getInputs().get(0).visit(this, context)) {
       node.setExchangeType(RelDistribution.Type.SINGLETON);
-      return oldPartitionKeys;
+      return true;
     } else {
-      // reset the context partitionKeys since we've determined that
-      // a shuffle is necessary (the MailboxReceiveNode that reads from
-      // this sender will necessarily be the result of a shuffle and
-      // will reset the partition keys based on its selector)
-      return new HashSet<>();
+      return false;
     }
   }
 
   @Override
-  public Set<Integer> visitProject(ProjectNode node, Void context) {
-    Set<Integer> oldPartitionKeys = node.getInputs().get(0).visit(this, context);
-    return deriveNewPartitionKeysFromRexExpressions(node.getProjects(), oldPartitionKeys);
+  public Boolean visitProject(ProjectNode node, PlannerContext context) {
+    return node.getInputs().get(0).visit(this, context);
   }
 
   @Override
-  public Set<Integer> visitSort(SortNode node, Void context) {
+  public Boolean visitSort(SortNode node, PlannerContext context) {
     // sort doesn't change the partition keys
     return node.getInputs().get(0).visit(this, context);
   }
 
   @Override
-  public Set<Integer> visitTableScan(TableScanNode node, Void context) {
+  public Boolean visitTableScan(TableScanNode node, PlannerContext context) {
     // TODO: add table partition in table config as partition keys - this info is not yet available
-    return new HashSet<>();
+    return context.getOptions().containsKey("skipShuffle");
   }
 
   @Override
-  public Set<Integer> visitValue(ValueNode node, Void context) {
-    return new HashSet<>();
-  }
-
-  private static boolean canSkipShuffle(Set<Integer> partitionKeys, KeySelector<Object[], Object[]> keySelector) {
-    if (!partitionKeys.isEmpty() && keySelector != null) {
-      Set<Integer> targetSet = new HashSet<>(((FieldSelectionKeySelector) keySelector).getColumnIndices());
-      return targetSet.containsAll(partitionKeys);
-    }
+  public Boolean visitValue(ValueNode node, PlannerContext context) {
     return false;
-  }
-
-  private static Set<Integer> deriveNewPartitionKeysFromRexExpressions(List<RexExpression> rexExpressionList,
-      Set<Integer> oldPartitionKeys) {
-    Map<Integer, Integer> partitionKeyMap = new HashMap<>();
-    for (int i = 0; i < rexExpressionList.size(); i++) {
-      RexExpression rex = rexExpressionList.get(i);
-      if (rex instanceof RexExpression.InputRef) {
-        // put the old-index to new-index mapping
-        // TODO: it doesn't handle duplicate references. e.g. if the same old partition key is referred twice. it will
-        // only keep the second one. (see JOIN handling on left/right as another example)
-        partitionKeyMap.put(((RexExpression.InputRef) rex).getIndex(), i);
-      }
-    }
-    if (partitionKeyMap.keySet().containsAll(oldPartitionKeys)) {
-      Set<Integer> newPartitionKeys = new HashSet<>();
-      for (int oldKey : oldPartitionKeys) {
-        newPartitionKeys.add(partitionKeyMap.get(oldKey));
-      }
-      return newPartitionKeys;
-    } else {
-      return new HashSet<>();
-    }
   }
 }
