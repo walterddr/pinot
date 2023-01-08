@@ -1,0 +1,37 @@
+{
+  "schemaName": "splitio_events",
+  "dimensionFieldSpecs": [
+    {
+      "name": "environmentId",
+      "dataType": "STRING"
+    },
+    {
+      "name": "eventTypeId",
+      "dataType": "STRING"
+    },
+    {
+      "name": "key",
+      "dataType": "STRING"
+    },
+    {
+      "name": "orgId",
+      "dataType": "STRING"
+    },
+    {
+      "name": "properties",
+      "dataType": "STRING"
+    },
+    {
+      "name": "value",
+      "dataType": "FLOAT"
+    }
+  ],
+  "dateTimeFieldSpecs": [
+    {
+      "name": "receptionTimestamp",
+      "dataType": "LONG",
+      "format": "1:MILLISECONDS:EPOCH",
+      "granularity": "1:MILLISECONDS"
+    }
+  ]
+}
