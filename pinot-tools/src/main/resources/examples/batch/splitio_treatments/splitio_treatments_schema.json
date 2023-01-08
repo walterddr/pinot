@@ -1,0 +1,41 @@
+{
+  "schemaName": "splitio_treatments",
+  "dimensionFieldSpecs": [
+    {
+      "name": "key",
+      "dataType": "STRING"
+    },
+    {
+      "name": "orgId",
+      "dataType": "STRING"
+    },
+    {
+      "name": "envId",
+      "dataType": "STRING"
+    },
+    {
+      "name": "testId",
+      "dataType": "STRING"
+    },
+    {
+      "name": "changeNumber",
+      "dataType": "LONG"
+    },
+    {
+      "name": "rule",
+      "dataType": "STRING"
+    },
+    {
+      "name": "treatment",
+      "dataType": "STRING"
+    },
+    {
+      "name": "start_ts",
+      "dataType": "LONG"
+    },
+    {
+      "name": "end_ts",
+      "dataType": "LONG"
+    }
+  ]
+}
