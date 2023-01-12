@@ -19,7 +19,6 @@
 package org.apache.pinot.query.context;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.hep.HepProgram;

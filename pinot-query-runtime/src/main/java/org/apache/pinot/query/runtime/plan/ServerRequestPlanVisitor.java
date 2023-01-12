@@ -118,7 +118,7 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     pinotQuery.setExplain(false);
     ServerPlanRequestContext context =
         new ServerPlanRequestContext(mailboxService, requestId, stagePlan.getStageId(), timeoutMs,
-            stagePlan.getServerInstance().getHostname(), stagePlan.getServerInstance().getPort(),
+            stagePlan.getServerInstance().getHostname(), stagePlan.getServerInstance().getQueryMailboxPort(),
             stagePlan.getMetadataMap(), pinotQuery, tableType, timeBoundaryInfo);
 
     // visit the plan and create query physical plan.
@@ -205,7 +205,8 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     MailboxReceiveOperator mailboxReceiveOperator = new MailboxReceiveOperator(context.getMailboxService(),
          sendingInstances, dynamicMailbox.getExchangeType(), context.getHostName(), context.getPort(),
         context.getRequestId(), dynamicMailbox.getSenderStageId(), context.getTimeoutMs());
-    TransferableBlock block = attachDynamicOperatorResults(mailboxReceiveOperator, dynamicMailbox.getDataSchema());
+    TransferableBlock block = attachDynamicOperatorResults(mailboxReceiveOperator, dynamicMailbox.getDataSchema(),
+        context.getTimeoutMs());
     context.setDynamicOperatorResult(block);
     // step 2: write filter expression
     attachDynamicFilter(context.getPinotQuery(), node.getJoinKeys(), block);
@@ -369,13 +370,27 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     }
   }
 
+
   private static TransferableBlock attachDynamicOperatorResults(BaseOperator<TransferableBlock> baseOperator,
-      DataSchema dataSchema) {
+      DataSchema dataSchema, long timeoutMs) {
+
+
+  long timeoutWatermark = System.nanoTime() + timeoutMs * 1_000_000L;
     TransferableBlock mergedBlock = new TransferableBlock(new ArrayList<>(), dataSchema, BaseDataBlock.Type.ROW);
-    TransferableBlock block = baseOperator.nextBlock();
-    while (!TransferableBlockUtils.isEndOfStream(block)) {
-      mergedBlock.getContainer().addAll(block.getContainer());
-      block = baseOperator.nextBlock();
+    while (System.nanoTime() < timeoutWatermark) {
+      TransferableBlock transferableBlock = baseOperator.nextBlock();
+      if (TransferableBlockUtils.isEndOfStream(transferableBlock) && transferableBlock.isErrorBlock()) {
+        // TODO: we only received bubble up error from the execution stage tree.
+        // TODO: query dispatch should also send cancel signal to the rest of the execution stage tree.
+        throw new RuntimeException(
+            "Received error query execution result block: " + transferableBlock.getDataBlock().getExceptions());
+      }
+      if (transferableBlock.isNoOpBlock()) {
+        continue;
+      } else if (transferableBlock.isEndOfStreamBlock()) {
+        return mergedBlock;
+      }
+      mergedBlock.getContainer().addAll(transferableBlock.getContainer());
     }
     return mergedBlock;
   }
