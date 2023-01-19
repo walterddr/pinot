@@ -37,6 +37,8 @@ public class PinotQueryRuleSets {
           EnumerableRules.ENUMERABLE_PROJECT_RULE, EnumerableRules.ENUMERABLE_SORT_RULE,
           EnumerableRules.ENUMERABLE_TABLE_SCAN_RULE,
 
+          // extract a project out of aggregate.
+          PinotAggregateExtractProjectRule.INSTANCE,
           // push a filter into a join
           CoreRules.FILTER_INTO_JOIN,
           // push filter through an aggregation
@@ -49,10 +51,9 @@ public class PinotQueryRuleSets {
           CoreRules.PROJECT_SET_OP_TRANSPOSE,
 
           // aggregation and projection rules
-          CoreRules.AGGREGATE_PROJECT_MERGE, CoreRules.AGGREGATE_PROJECT_PULL_UP_CONSTANTS,
+          CoreRules.AGGREGATE_PROJECT_PULL_UP_CONSTANTS,
           // push a projection past a filter or vice versa
-          CoreRules.PROJECT_FILTER_TRANSPOSE, CoreRules.FILTER_PROJECT_TRANSPOSE,
-          // push a projection to the children of a join
+          CoreRules.PROJECT_FILTER_TRANSPOSE,
           // push all expressions to handle the time indicator correctly
           CoreRules.JOIN_CONDITION_PUSH,
           // merge projections
@@ -92,7 +93,7 @@ public class PinotQueryRuleSets {
           PruneEmptyRules.JOIN_RIGHT_INSTANCE, PruneEmptyRules.PROJECT_INSTANCE, PruneEmptyRules.SORT_INSTANCE,
           PruneEmptyRules.UNION_INSTANCE,
 
-          // Pinot specific rules
+          // Post-applied Pinot specific rules
           PinotFilterExpandSearchRule.INSTANCE,
           PinotJoinExchangeNodeInsertRule.INSTANCE,
           PinotAggregateExchangeNodeInsertRule.INSTANCE
