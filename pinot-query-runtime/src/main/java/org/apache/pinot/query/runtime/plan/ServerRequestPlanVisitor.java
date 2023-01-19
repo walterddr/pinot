@@ -21,7 +21,6 @@ package org.apache.pinot.query.runtime.plan;
 import com.clearspring.analytics.util.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.pinot.common.datablock.BaseDataBlock;
-import org.apache.pinot.common.function.TransformFunctionType;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.DataSource;
 import org.apache.pinot.common.request.Expression;
@@ -41,8 +39,6 @@ import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.request.RequestUtils;
 import org.apache.pinot.core.operator.BaseOperator;
 import org.apache.pinot.core.query.optimizer.QueryOptimizer;
-import org.apache.pinot.core.query.utils.idset.IdSet;
-import org.apache.pinot.core.query.utils.idset.IdSets;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.mailbox.MailboxService;
@@ -288,45 +284,42 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     for (int i = 0; i < leftSelector.getColumnIndices().size(); i++) {
       Expression leftExpr = pinotQuery.getSelectList().get(leftSelector.getColumnIndices().get(i));
       int rightIdx = rightSelector.getColumnIndices().get(i);
-      Expression dynamicFilter = RequestUtils.getFunctionExpression(TransformFunctionType.INIDSET.name());
-      dynamicFilter.getFunctionCall().setOperands(Arrays.asList(leftExpr, computeIdSet(dataBlock, rightIdx)));
-      Expression filterExpr = RequestUtils.getFunctionExpression(FilterKind.EQUALS.name());
-      filterExpr.getFunctionCall().setOperands(Arrays.asList(dynamicFilter, RequestUtils.getLiteralExpression(true)));
-      expressions.add(filterExpr);
+      Expression inFilterExpr = RequestUtils.getFunctionExpression(FilterKind.IN.name());
+      List<Expression> operands = new ArrayList<>(dataBlock.getNumRows() + 1);
+      operands.add(leftExpr);
+      operands.addAll(computeInOperands(dataBlock, rightIdx));
+      inFilterExpr.getFunctionCall().setOperands(operands);
+      expressions.add(inFilterExpr);
     }
     attachFilterExpression(pinotQuery, FilterKind.AND, expressions);
   }
 
-  private static Expression computeIdSet(TransferableBlock block, int idx) {
-    final DataSchema.ColumnDataType columnDataType = block.getDataSchema().getColumnDataType(idx);
+  private static List<Expression> computeInOperands(TransferableBlock block, int colIdx) {
+    final DataSchema.ColumnDataType columnDataType = block.getDataSchema().getColumnDataType(colIdx);
     final FieldSpec.DataType storedType = columnDataType.getStoredType().toDataType();;
-    IdSet idSet = IdSets.create(columnDataType.toDataType());
+    List<Expression> expressions = new ArrayList<>(block.getNumRows());
     for (Object[] row : block.getContainer()) {
       switch (storedType) {
         case INT:
-          idSet.add((int) row[idx]);
+          expressions.add(RequestUtils.getLiteralExpression((int) row[colIdx]));
           break;
         case LONG:
-          idSet.add((long) row[idx]);
+          expressions.add(RequestUtils.getLiteralExpression((long) row[colIdx]));
           break;
         case FLOAT:
-          idSet.add((float) row[idx]);
+          expressions.add(RequestUtils.getLiteralExpression((float) row[colIdx]));
           break;
         case DOUBLE:
-          idSet.add((double) row[idx]);
+          expressions.add(RequestUtils.getLiteralExpression((double) row[colIdx]));
           break;
         case STRING:
-          idSet.add((String) row[idx]);
+          expressions.add(RequestUtils.getLiteralExpression((String) row[colIdx]));
           break;
         default:
           throw new IllegalStateException("Illegal SV data type for ID_SET aggregation function: " + storedType);
       }
     }
-    try {
-      return RequestUtils.getLiteralExpression(idSet.toBase64String());
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    return expressions;
   }
 
 

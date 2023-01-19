@@ -118,7 +118,7 @@ public class PinotInnerJoinToDynamicFilterRule extends RelOptRule {
           : join.getRight();
       return join.getJoinType() == JoinRelType.INNER && CollectionUtils.isEmpty(joinInfo.nonEquiConditions)
           && left instanceof LogicalExchange && right instanceof LogicalExchange
-          && noExchangeInSubtree(left.getInput(0)) && noExchangeInSubtree(right.getInput(0))
+          && noExchangeInSubtree(left.getInput(0))
           && context.getOptions().containsKey(PinotRelOptPlannerContext.USE_DYNAMIC_FILTER);
     }
     return false;
