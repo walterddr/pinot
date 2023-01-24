@@ -95,11 +95,11 @@ import org.apache.pinot.query.context.PinotRelOptPlannerContext;
  *   </li>
  * </ul>
  */
-public class PinotInnerJoinToDynamicFilterRule extends RelOptRule {
-  public static final PinotInnerJoinToDynamicFilterRule INSTANCE =
-      new PinotInnerJoinToDynamicFilterRule(PinotRuleUtils.PINOT_REL_FACTORY);
+public class PinotJoinToDynamicFilterRule extends RelOptRule {
+  public static final PinotJoinToDynamicFilterRule INSTANCE =
+      new PinotJoinToDynamicFilterRule(PinotRuleUtils.PINOT_REL_FACTORY);
 
-  public PinotInnerJoinToDynamicFilterRule(RelBuilderFactory factory) {
+  public PinotJoinToDynamicFilterRule(RelBuilderFactory factory) {
     super(operand(LogicalJoin.class, any()), factory, null);
   }
 
@@ -116,9 +116,9 @@ public class PinotInnerJoinToDynamicFilterRule extends RelOptRule {
           : join.getLeft();
       RelNode right = join.getRight() instanceof HepRelVertex ? ((HepRelVertex) join.getRight()).getCurrentRel()
           : join.getRight();
-      return join.getJoinType() == JoinRelType.INNER && CollectionUtils.isEmpty(joinInfo.nonEquiConditions)
+      return join.getJoinType() == JoinRelType.SEMI && CollectionUtils.isEmpty(joinInfo.nonEquiConditions)
           && left instanceof LogicalExchange && right instanceof LogicalExchange
-          && noExchangeInSubtree(left.getInput(0))
+          && PinotRuleUtils.noExchangeInSubtree(left.getInput(0))
           && context.getOptions().containsKey(PinotRelOptPlannerContext.USE_DYNAMIC_FILTER);
     }
     return false;
@@ -136,26 +136,10 @@ public class PinotInnerJoinToDynamicFilterRule extends RelOptRule {
         RelDistributions.BROADCAST_DISTRIBUTED);
     Join dynamicFilterJoin =
         new LogicalJoin(join.getCluster(), join.getTraitSet(), left.getInput(), broadcastDynamicFilterExchange,
-            join.getCondition(), join.getVariablesSet(), JoinRelType.INNER, join.isSemiJoinDone(),
+            join.getCondition(), join.getVariablesSet(), JoinRelType.SEMI, join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
     LogicalExchange passThroughAfterJoinExchange =
         LogicalExchange.create(dynamicFilterJoin, RelDistributions.SINGLETON);
     call.transformTo(passThroughAfterJoinExchange);
-  }
-
-  // TODO: optimize this part out
-  private static boolean noExchangeInSubtree(RelNode relNode) {
-    if (relNode instanceof HepRelVertex) {
-      relNode = ((HepRelVertex) relNode).getCurrentRel();
-    }
-    if (relNode instanceof LogicalExchange) {
-      return false;
-    }
-    for (RelNode child : relNode.getInputs()) {
-      if (!noExchangeInSubtree(child)) {
-        return false;
-      }
-    }
-    return true;
   }
 }
