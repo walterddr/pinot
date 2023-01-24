@@ -39,6 +39,11 @@ public class MultistageEngineQuickStart extends Quickstart {
   };
 
   @Override
+  protected int getNumQuickstartRunnerServers() {
+    return 3;
+  }
+
+  @Override
   public List<String> types() {
     return Collections.singletonList("MULTI_STAGE");
   }

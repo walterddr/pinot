@@ -132,13 +132,15 @@ public class PinotInnerJoinToDynamicFilterRule extends RelOptRule {
     LogicalExchange right = (LogicalExchange) (join.getRight() instanceof HepRelVertex
         ? ((HepRelVertex) join.getRight()).getCurrentRel() : join.getRight());
 
-    // swap the order of exchange and JOIN on the left is good enough for now
+    LogicalExchange broadcastDynamicFilterExchange = LogicalExchange.create(right.getInput(),
+        RelDistributions.BROADCAST_DISTRIBUTED);
     Join dynamicFilterJoin =
-        new LogicalJoin(join.getCluster(), join.getTraitSet(), left.getInput(), right,
+        new LogicalJoin(join.getCluster(), join.getTraitSet(), left.getInput(), broadcastDynamicFilterExchange,
             join.getCondition(), join.getVariablesSet(), JoinRelType.INNER, join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
-    LogicalExchange joinDonePassThroughExchange = LogicalExchange.create(dynamicFilterJoin, RelDistributions.SINGLETON);
-    call.transformTo(joinDonePassThroughExchange);
+    LogicalExchange passThroughAfterJoinExchange =
+        LogicalExchange.create(dynamicFilterJoin, RelDistributions.SINGLETON);
+    call.transformTo(passThroughAfterJoinExchange);
   }
 
   // TODO: optimize this part out
