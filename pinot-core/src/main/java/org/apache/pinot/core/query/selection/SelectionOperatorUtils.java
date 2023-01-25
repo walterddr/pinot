@@ -157,6 +157,9 @@ public class SelectionOperatorUtils {
       }
       allColumns.sort(null);
       return allColumns;
+    } else if (numSelectExpressions == 1 && selectExpressions.get(0).getType() == ExpressionContext.Type.FUNCTION
+        && selectExpressions.get(0).getFunction().getFunctionName().equalsIgnoreCase("JOINTABLE")) {
+      return Arrays.asList(dataSchema.getColumnNames());
     } else {
       List<String> columns = new ArrayList<>(numSelectExpressions);
       for (ExpressionContext selectExpression : selectExpressions) {

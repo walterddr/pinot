@@ -36,6 +36,9 @@ public class QueryOptionsUtils {
   private QueryOptionsUtils() {
   }
 
+  private static final String IN_MEMORY_TABLE_DATATABLE_SUFFIX = "InMemoryTableDataTable";
+
+  private static final String IN_MEMORY_TABLE_QUERY_SUFFIX = "InMemoryTableQuery";
 
   private static final Map<String, String> CONFIG_RESOLVER;
   private static final RuntimeException CLASS_LOAD_ERROR;
@@ -189,5 +192,26 @@ public class QueryOptionsUtils {
   public static Integer getGroupTrimThreshold(Map<String, String> queryOptions) {
     String groupByTrimThreshold = queryOptions.get(QueryOptionKey.GROUP_TRIM_THRESHOLD);
     return groupByTrimThreshold != null ? Integer.parseInt(groupByTrimThreshold) : null;
+  }
+
+  public static String getInMemoryDataTable(Map<String, String> queryOptions, String tableName) {
+    return queryOptions.get(IN_MEMORY_TABLE_DATATABLE_SUFFIX + tableName);
+  }
+
+  public static String[] getInMemoryTableNames(Map<String, String> queryOptions) {
+    String tables = queryOptions.get(QueryOptionKey.IN_MEMORY_TABLE_LIST);
+    if (tables != null) {
+      return tables.split(",");
+    }
+    return null;
+  }
+
+  public static String getInMemoryTableQuery(Map<String, String> queryOptions, String tableName) {
+    return queryOptions.get(IN_MEMORY_TABLE_QUERY_SUFFIX + tableName);
+  }
+
+  public static void setInMemoryTableDataTable(Map<String, String> queryOptions, String tableName,
+      String dataTableStr) {
+    queryOptions.put(IN_MEMORY_TABLE_DATATABLE_SUFFIX + tableName, dataTableStr);
   }
 }

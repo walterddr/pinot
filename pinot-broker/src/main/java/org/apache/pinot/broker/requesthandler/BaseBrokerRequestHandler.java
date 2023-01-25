@@ -21,8 +21,10 @@ package org.apache.pinot.broker.requesthandler;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,6 +51,7 @@ import org.apache.pinot.broker.querylog.QueryLogger;
 import org.apache.pinot.broker.queryquota.QueryQuotaManager;
 import org.apache.pinot.broker.routing.BrokerRoutingManager;
 import org.apache.pinot.common.config.provider.TableCache;
+import org.apache.pinot.common.datatable.DataTable;
 import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.http.MultiHttpRequest;
 import org.apache.pinot.common.metrics.BrokerGauge;
@@ -70,6 +73,8 @@ import org.apache.pinot.common.response.broker.ResultTable;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.common.utils.request.RequestUtils;
+import org.apache.pinot.core.common.datatable.DataTableBuilder;
+import org.apache.pinot.core.common.datatable.DataTableBuilderFactory;
 import org.apache.pinot.core.query.optimizer.QueryOptimizer;
 import org.apache.pinot.core.routing.RoutingTable;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
@@ -301,8 +306,9 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
             QueryException.getException(QueryException.QUERY_VALIDATION_ERROR, "Data source (FROM clause) not found"));
       }
 
+      Map<String, String> queryOptions = sqlNodeAndOptions.getOptions();
       try {
-        handleSubquery(serverPinotQuery, requestId, request, requesterIdentity, requestContext);
+        handleSubquery(serverPinotQuery, requestId, request, requesterIdentity, requestContext, queryOptions);
       } catch (Exception e) {
         LOGGER.info("Caught exception while handling the subquery in request {}: {}, {}", requestId, query,
             e.getMessage());
@@ -781,11 +787,69 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
    * <p>Currently only supports subquery within the filter.
    */
   private void handleSubquery(PinotQuery pinotQuery, long requestId, JsonNode jsonRequest,
-      @Nullable RequesterIdentity requesterIdentity, RequestContext requestContext)
+      @Nullable RequesterIdentity requesterIdentity, RequestContext requestContext, Map<String, String> options)
       throws Exception {
     Expression filterExpression = pinotQuery.getFilterExpression();
     if (filterExpression != null) {
       handleSubquery(filterExpression, requestId, jsonRequest, requesterIdentity, requestContext);
+    }
+    String[] inMemoryTables = QueryOptionsUtils.getInMemoryTableNames(options);
+    if (inMemoryTables != null) {
+      handleInMemoryTables(filterExpression, requestId, jsonRequest, requesterIdentity, requestContext, options,
+          inMemoryTables);
+    }
+  }
+
+  private void handleInMemoryTables(Expression expression, long requestId, JsonNode jsonRequest,
+      @Nullable RequesterIdentity requesterIdentity, RequestContext requestContext, Map<String, String> options,
+      String[] inMemoryTables)
+      throws Exception {
+    for (String table : inMemoryTables) {
+      String query = QueryOptionsUtils.getInMemoryTableQuery(options, table);
+      // TODO: need subquery options
+      BrokerResponseNative response =
+          handleRequest(requestId, query, null, jsonRequest, requesterIdentity, requestContext);
+      if (response.getExceptionsSize() != 0) {
+        throw new RuntimeException("Caught exception while executing in memory table subquery: " + query);
+      }
+      ResultTable resultTable = response.getResultTable();
+      DataTableBuilder dataTableBuilder = DataTableBuilderFactory.getDataTableBuilder(resultTable.getDataSchema());
+      List<Object[]> rows = resultTable.getRows();
+      DataSchema.ColumnDataType[] dataTypes = resultTable.getDataSchema().getColumnDataTypes();
+      for (int rowId = 0; rowId < rows.size(); rowId++) {
+        dataTableBuilder.startRow();
+        Object[] row = rows.get(rowId);
+        //TODO: Handle other types. Assume it is all string types.
+        for (int colId = 0; colId < row.length; colId++) {
+          switch (dataTypes[colId]) {
+            case STRING:
+              dataTableBuilder.setColumn(colId, (String) row[colId]);
+              break;
+            case BOOLEAN: // fall through
+            case INT:
+              dataTableBuilder.setColumn(colId, ((Integer) row[colId]).intValue());
+              break;
+            case LONG:
+              dataTableBuilder.setColumn(colId, ((Long) row[colId]).longValue());
+              break;
+            case BIG_DECIMAL:
+              dataTableBuilder.setColumn(colId, ((BigDecimal) row[colId]));
+              break;
+            case DOUBLE:
+              dataTableBuilder.setColumn(colId, ((Double) row[colId]).doubleValue());
+              break;
+            case FLOAT:
+              dataTableBuilder.setColumn(colId, ((Float) row[colId]).floatValue());
+              break;
+            default:
+              throw new RuntimeException("Unsupported data type:" + dataTypes[colId]);
+          }
+        }
+        dataTableBuilder.finishRow();
+      }
+      DataTable dataTable = dataTableBuilder.build();
+      String dataTableStr = Base64.getEncoder().encodeToString(dataTable.toBytes());
+      QueryOptionsUtils.setInMemoryTableDataTable(options, table, dataTableStr);
     }
   }
 

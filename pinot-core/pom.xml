@@ -272,6 +272,11 @@
       <artifactId>lucene-analyzers-common</artifactId>
       <version>${lucene.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-jexl3</artifactId>
+      <version>3.2.1</version>
+    </dependency>
   </dependencies>
   <profiles>
     <profile>
