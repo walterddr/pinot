@@ -147,7 +147,8 @@ public class QueryContextUtils {
    * Returns {@code true} if the given query is a selection query, {@code false} otherwise.
    */
   public static boolean isJoinQuery(QueryContext query) {
-    return query.getAggregationFunctions() == null && query.getSelectExpressions().size() == 1 && query
-        .getSelectExpressions().get(0).getFunction().getFunctionName().equalsIgnoreCase("jointable");
+    return query.getAggregationFunctions() == null && query.getSelectExpressions().size() == 1
+        && query.getSelectExpressions().get(0).getType() == ExpressionContext.Type.FUNCTION
+        && query.getSelectExpressions().get(0).getFunction().getFunctionName().equalsIgnoreCase("JoinTable");
   }
 }

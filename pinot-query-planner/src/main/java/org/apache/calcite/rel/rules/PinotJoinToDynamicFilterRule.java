@@ -30,7 +30,6 @@ import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalExchange;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.tools.RelBuilderFactory;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.pinot.query.context.PinotRelOptPlannerContext;
 
 
@@ -116,7 +115,8 @@ public class PinotJoinToDynamicFilterRule extends RelOptRule {
           : join.getLeft();
       RelNode right = join.getRight() instanceof HepRelVertex ? ((HepRelVertex) join.getRight()).getCurrentRel()
           : join.getRight();
-      return join.getJoinType() == JoinRelType.SEMI && CollectionUtils.isEmpty(joinInfo.nonEquiConditions)
+      // return join.getJoinType() == JoinRelType.SEMI && CollectionUtils.isEmpty(joinInfo.nonEquiConditions)
+      return (join.getJoinType() == JoinRelType.INNER || join.getJoinType() == JoinRelType.SEMI)
           && left instanceof LogicalExchange && right instanceof LogicalExchange
           && PinotRuleUtils.noExchangeInSubtree(left.getInput(0))
           && context.getOptions().containsKey(PinotRelOptPlannerContext.USE_DYNAMIC_FILTER);
@@ -136,7 +136,7 @@ public class PinotJoinToDynamicFilterRule extends RelOptRule {
         RelDistributions.BROADCAST_DISTRIBUTED);
     Join dynamicFilterJoin =
         new LogicalJoin(join.getCluster(), join.getTraitSet(), left.getInput(), broadcastDynamicFilterExchange,
-            join.getCondition(), join.getVariablesSet(), JoinRelType.SEMI, join.isSemiJoinDone(),
+            join.getCondition(), join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),
             ImmutableList.copyOf(join.getSystemFieldList()));
     LogicalExchange passThroughAfterJoinExchange =
         LogicalExchange.create(dynamicFilterJoin, RelDistributions.SINGLETON);

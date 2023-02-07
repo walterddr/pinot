@@ -20,24 +20,30 @@ package org.apache.pinot.query.runtime.plan;
 
 import com.clearspring.analytics.util.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.pinot.common.datablock.BaseDataBlock;
+import org.apache.pinot.common.datatable.DataTable;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.DataSource;
 import org.apache.pinot.common.request.Expression;
+import org.apache.pinot.common.request.ExpressionType;
+import org.apache.pinot.common.request.Function;
 import org.apache.pinot.common.request.InstanceRequest;
 import org.apache.pinot.common.request.PinotQuery;
 import org.apache.pinot.common.request.QuerySource;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.common.utils.request.RequestUtils;
-import org.apache.pinot.core.operator.BaseOperator;
+import org.apache.pinot.core.common.datatable.DataTableBuilder;
+import org.apache.pinot.core.common.datatable.DataTableBuilderFactory;
 import org.apache.pinot.core.query.optimizer.QueryOptimizer;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.query.mailbox.MailboxService;
@@ -59,6 +65,7 @@ import org.apache.pinot.query.routing.VirtualServerAddress;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
 import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
 import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
+import org.apache.pinot.query.runtime.operator.MultiStageOperator;
 import org.apache.pinot.query.runtime.plan.server.ServerPlanRequestContext;
 import org.apache.pinot.query.service.QueryConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
@@ -87,6 +94,7 @@ import org.slf4j.LoggerFactory;
  */
 public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPlanRequestContext> {
   private static final int DEFAULT_LEAF_NODE_LIMIT = 10_000_000;
+  private static final String DYNAMIC_TABLE_NAME = "DynamicTable";
   private static final Logger LOGGER = LoggerFactory.getLogger(ServerRequestPlanVisitor.class);
   private static final List<String> QUERY_REWRITERS_CLASS_NAMES =
       ImmutableList.of(PredicateComparisonRewriter.class.getName(),
@@ -112,17 +120,22 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
       pinotQuery.setLimit(DEFAULT_LEAF_NODE_LIMIT);
     }
     LOGGER.debug("QueryID" + requestId + " leafNodeLimit:" + leafNodeLimit);
+    // 1. set PinotQuery default according to requestMetadataMap
     pinotQuery.setExplain(false);
+    Map<String, String> queryOptions = new HashMap<>();
+    queryOptions.put(CommonConstants.Broker.Request.QueryOptionKey.TIMEOUT_MS, String.valueOf(timeoutMs));
+    pinotQuery.setQueryOptions(queryOptions);
+
+    // 2. visit the plan and create query physical plan.
     ServerPlanRequestContext context =
         new ServerPlanRequestContext(mailboxService, requestId, stagePlan.getStageId(), timeoutMs,
             new VirtualServerAddress(stagePlan.getServer()), stagePlan.getMetadataMap(), pinotQuery, tableType,
             timeBoundaryInfo);
 
-    // visit the plan and create query physical plan.
     ServerRequestPlanVisitor.walkStageNode(stagePlan.getStageRoot(), context);
 
     // Post-visit: finalize context.
-    // 1. global rewrite/optimize
+    // 3. global rewrite/optimize
     if (timeBoundaryInfo != null) {
       attachTimeBoundary(pinotQuery, timeBoundaryInfo, tableType == TableType.OFFLINE);
     }
@@ -131,11 +144,7 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     }
     QUERY_OPTIMIZER.optimize(pinotQuery, tableConfig, schema);
 
-    // 2. set pinot query options according to requestMetadataMap
-    pinotQuery.setQueryOptions(
-        ImmutableMap.of(CommonConstants.Broker.Request.QueryOptionKey.TIMEOUT_MS, String.valueOf(timeoutMs)));
-
-    // 3. wrapped around in broker request
+    // 4. wrapped around in broker request
     BrokerRequest brokerRequest = new BrokerRequest();
     brokerRequest.setPinotQuery(pinotQuery);
     DataSource dataSource = pinotQuery.getDataSource();
@@ -145,7 +154,7 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
       brokerRequest.setQuerySource(querySource);
     }
 
-    // 3. create instance request with segmentList
+    // 5. create instance request with segmentList
     InstanceRequest instanceRequest = new InstanceRequest();
     instanceRequest.setRequestId(requestId);
     instanceRequest.setBrokerId("unknown");
@@ -202,13 +211,18 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     MailboxReceiveOperator mailboxReceiveOperator = new MailboxReceiveOperator(context.getMailboxService(),
         sendingInstances, dynamicMailbox.getExchangeType(), context.getServer(),
         context.getRequestId(), dynamicMailbox.getSenderStageId(), context.getTimeoutMs());
-    TransferableBlock block = attachDynamicOperatorResults(mailboxReceiveOperator, dynamicMailbox.getDataSchema(),
+    TransferableBlock block = receiveDataBlock(mailboxReceiveOperator, dynamicMailbox.getDataSchema(),
         context.getTimeoutMs());
     context.setDynamicOperatorResult(block);
     // step 2: write filter expression
+    //   1. join keys will be rewritten as either IN clause or IN_IDSET
+    //   2. inequality joins will be rewritten as min/max range filter
     attachDynamicFilter(context.getPinotQuery(), node.getJoinKeys(), block);
     // step 3: write project expression
-    // TODO: write dynamic project
+    //   1. equality join conditions will be used as join key
+    //   2. inequality join conditions will be rewritten as local join filter
+    //   3. projects will be rewritten as local project columns
+    attachJoinTable(context.getPinotQuery(), node, block);
     return _aVoid;
   }
 
@@ -275,7 +289,7 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
 
 
   /**
-   * Helper method to attach the dynamic filter to the given PinotQuery.
+   * attach the dynamic filter to the given PinotQuery.
    */
   private static void attachDynamicFilter(PinotQuery pinotQuery, JoinNode.JoinKeys joinKeys,
       TransferableBlock dataBlock) {
@@ -323,9 +337,96 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     return expressions;
   }
 
+  /**
+   * Attach Local Join clause
+   */
+  private static void attachJoinTable(PinotQuery pinotQuery, JoinNode joinNode, TransferableBlock block) {
+    List<String> leftSchema = joinNode.getLeftColumnNames();
+    List<String> rightSchema = joinNode.getRightColumnNames();
+
+    // 1. attach equality join key
+    JoinNode.JoinKeys joinKeys = joinNode.getJoinKeys();
+    FieldSelectionKeySelector leftSelector = (FieldSelectionKeySelector) joinKeys.getLeftJoinKeySelector();
+    FieldSelectionKeySelector rightSelector = (FieldSelectionKeySelector) joinKeys.getRightJoinKeySelector();
+    List<String> joinKeyLeft = new ArrayList<>(leftSelector.getColumnIndices().size());
+    List<String> joinKeyRight = new ArrayList<>(rightSelector.getColumnIndices().size());
+    for (int i = 0; i < leftSelector.getColumnIndices().size(); i++) {
+      joinKeyLeft.add(leftSchema.get(leftSelector.getColumnIndices().get(i)));
+      joinKeyRight.add(rightSchema.get(rightSelector.getColumnIndices().get(i)));
+    }
+    // 2. attach filter clause
+    // TODO: add attach filter
+
+    // 3. attach selection columns
+    List<String> projectLeft = leftSchema;
+    List<String> projectRight = rightSchema;
+
+    // 4. attach data table
+    attachInmemoryTable(pinotQuery, block);
+
+    // construct the final expression
+    Expression functionExpression = new Expression(ExpressionType.FUNCTION);
+    Function function = new Function("JoinTable");
+    functionExpression.setFunctionCall(function);
+    List<Expression> operands = new ArrayList<>(8);
+    operands.add(RequestUtils.getLiteralExpression(StringUtils.join(joinKeyLeft, ',')));
+    operands.add(RequestUtils.getLiteralExpression(DYNAMIC_TABLE_NAME));
+    operands.add(RequestUtils.getLiteralExpression(StringUtils.join(joinKeyRight, ',')));
+    operands.add(RequestUtils.getLiteralExpression(""));
+    operands.add(RequestUtils.getLiteralExpression(""));
+    operands.add(RequestUtils.getLiteralExpression(""));
+    operands.add(RequestUtils.getLiteralExpression(StringUtils.join(projectLeft, ',')));
+    operands.add(RequestUtils.getLiteralExpression(StringUtils.join(projectRight, ',')));
+    functionExpression.getFunctionCall().setOperands(operands);
+    pinotQuery.setSelectList(Collections.singletonList(functionExpression));
+  }
+
+  private static void attachInmemoryTable(PinotQuery pinotQuery, TransferableBlock block) {
+    List<Object[]> rows = block.getContainer();
+    DataTableBuilder dataTableBuilder = DataTableBuilderFactory.getDataTableBuilder(block.getDataSchema());
+    DataSchema.ColumnDataType[] dataTypes = block.getDataSchema().getColumnDataTypes();
+    try {
+      for (int rowId = 0; rowId < rows.size(); rowId++) {
+        dataTableBuilder.startRow();
+        Object[] row = rows.get(rowId);
+        //TODO: Handle other types. Assume it is all string types.
+        for (int colId = 0; colId < row.length; colId++) {
+          switch (dataTypes[colId]) {
+            case STRING:
+              dataTableBuilder.setColumn(colId, (String) row[colId]);
+              break;
+            case BOOLEAN: // fall through
+            case INT:
+              dataTableBuilder.setColumn(colId, ((Integer) row[colId]).intValue());
+              break;
+            case LONG:
+              dataTableBuilder.setColumn(colId, ((Long) row[colId]).longValue());
+              break;
+            case DOUBLE:
+              dataTableBuilder.setColumn(colId, ((Double) row[colId]).doubleValue());
+              break;
+            case FLOAT:
+              dataTableBuilder.setColumn(colId, ((Float) row[colId]).floatValue());
+              break;
+            default:
+              throw new RuntimeException("Unsupported data type:" + dataTypes[colId]);
+          }
+        }
+        dataTableBuilder.finishRow();
+      }
+      DataTable dataTable = dataTableBuilder.build();
+      String dataTableStr = Base64.getEncoder().encodeToString(dataTable.toBytes());
+      Map<String, String> queryOptions = pinotQuery.getQueryOptions();
+      queryOptions = queryOptions == null ? new HashMap<>() : queryOptions;
+      queryOptions.put(QueryOptionsUtils.IN_MEMORY_TABLE_DATATABLE_SUFFIX + DYNAMIC_TABLE_NAME, dataTableStr);
+      pinotQuery.setQueryOptions(queryOptions);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
 
   /**
-   * Helper method to attach the time boundary to the given PinotQuery.
+   * Attach the time boundary to the given PinotQuery.
    */
   private static void attachTimeBoundary(PinotQuery pinotQuery, TimeBoundaryInfo timeBoundaryInfo,
       boolean isOfflineRequest) {
@@ -348,6 +449,9 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     attachFilterExpression(pinotQuery, FilterKind.AND, Collections.singletonList(timeFilterExpression));
   }
 
+  /**
+   * Attach Filter Expression
+   */
   private static void attachFilterExpression(PinotQuery pinotQuery, FilterKind attachKind, List<Expression> exprs) {
     Preconditions.checkState(attachKind == FilterKind.AND || attachKind == FilterKind.OR);
     Expression filterExpression = pinotQuery.getFilterExpression();
@@ -364,11 +468,11 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     }
   }
 
-
-  private static TransferableBlock attachDynamicOperatorResults(BaseOperator<TransferableBlock> baseOperator,
+  /**
+   * Compute dynamic operator block received from a chain operators
+   */
+  private static TransferableBlock receiveDataBlock(MultiStageOperator baseOperator,
       DataSchema dataSchema, long timeoutMs) {
-
-
   long timeoutWatermark = System.nanoTime() + timeoutMs * 1_000_000L;
     TransferableBlock mergedBlock = new TransferableBlock(new ArrayList<>(), dataSchema, BaseDataBlock.Type.ROW);
     while (System.nanoTime() < timeoutWatermark) {

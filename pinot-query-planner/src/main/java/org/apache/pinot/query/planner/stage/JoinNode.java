@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.query.planner.stage;
 
+import java.util.Arrays;
 import java.util.List;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.pinot.common.datablock.BaseDataBlock;
@@ -35,6 +36,10 @@ public class JoinNode extends AbstractStageNode {
   private JoinKeys _joinKeys;
   @ProtoProperties
   private List<RexExpression> _joinClause;
+  @ProtoProperties
+  private List<String> _leftColumnNames;
+  @ProtoProperties
+  private List<String> _rightColumnNames;
 
   private transient BaseDataBlock _semiJoinResult;
 
@@ -42,9 +47,11 @@ public class JoinNode extends AbstractStageNode {
     super(stageId);
   }
 
-  public JoinNode(int stageId, DataSchema dataSchema, JoinRelType joinRelType, JoinKeys joinKeys,
-      List<RexExpression> joinClause) {
+  public JoinNode(int stageId, DataSchema dataSchema, DataSchema leftSchema, DataSchema rightSchema,
+      JoinRelType joinRelType, JoinKeys joinKeys, List<RexExpression> joinClause) {
     super(stageId, dataSchema);
+    _leftColumnNames = Arrays.asList(leftSchema.getColumnNames());
+    _rightColumnNames = Arrays.asList(rightSchema.getColumnNames());
     _joinRelType = joinRelType;
     _joinKeys = joinKeys;
     _joinClause = joinClause;
@@ -60,6 +67,14 @@ public class JoinNode extends AbstractStageNode {
 
   public List<RexExpression> getJoinClauses() {
     return _joinClause;
+  }
+
+  public List<String> getLeftColumnNames() {
+    return _leftColumnNames;
+  }
+
+  public List<String> getRightColumnNames() {
+    return _rightColumnNames;
   }
 
   @Override

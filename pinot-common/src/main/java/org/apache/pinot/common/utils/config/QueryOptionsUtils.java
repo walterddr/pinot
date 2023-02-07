@@ -36,9 +36,9 @@ public class QueryOptionsUtils {
   private QueryOptionsUtils() {
   }
 
-  private static final String IN_MEMORY_TABLE_DATATABLE_SUFFIX = "InMemoryTableDataTable";
+  public static final String IN_MEMORY_TABLE_DATATABLE_SUFFIX = "InMemoryTableDataTable";
 
-  private static final String IN_MEMORY_TABLE_QUERY_SUFFIX = "InMemoryTableQuery";
+  public static final String IN_MEMORY_TABLE_QUERY_SUFFIX = "InMemoryTableQuery";
 
   private static final Map<String, String> CONFIG_RESOLVER;
   private static final RuntimeException CLASS_LOAD_ERROR;

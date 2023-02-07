@@ -31,6 +31,7 @@ import org.apache.commons.jexl3.JexlContext;
 import org.apache.commons.jexl3.JexlEngine;
 import org.apache.commons.jexl3.JexlExpression;
 import org.apache.commons.jexl3.MapContext;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.pinot.common.datatable.DataTable;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.core.common.BlockValSet;
@@ -94,8 +95,13 @@ public class ReplicatedJoinOperator extends BaseOperator<SelectionResultsBlock> 
     _fetchColumnsLeft.addAll(List.of(leftJoinKey));
     _fetchColumnsLeft.addAll(List.of(projectColumnsLeft));
 
-    _jexl = new JexlBuilder().create();
-    _jexlExpression = _jexl.createExpression(postJoinFilterPredicate);
+    if (StringUtils.isNotEmpty(postJoinFilterPredicate)) {
+      _jexl = new JexlBuilder().create();
+      _jexlExpression = _jexl.createExpression(postJoinFilterPredicate);
+    } else {
+      _jexl = null;
+      _jexlExpression = null;
+    }
   }
 
   @Override
@@ -147,9 +153,12 @@ public class ReplicatedJoinOperator extends BaseOperator<SelectionResultsBlock> 
           case STRING:
             valueSet = valSet.getStringValuesSV();
             break;
-          case BOOLEAN: // fall through
+          case BOOLEAN:
           case INT:
             valueSet = valSet.getIntValuesSV();
+            break;
+          case LONG:
+            valueSet = valSet.getLongValuesSV();
             break;
           case FLOAT:
             valueSet = valSet.getFloatValuesSV();
@@ -171,20 +180,22 @@ public class ReplicatedJoinOperator extends BaseOperator<SelectionResultsBlock> 
         if (_keyToDocIdMapping.containsKey(joinColValues[i])) {
           List<Integer> docIds = _keyToDocIdMapping.get(joinColValues[i]);
           for (int docId : docIds) {
-            for (String col : _filterColumnsLeft) {
-              Object val = Array.get(blockValSetMap.get(col), i);
-              jc.set(col, val);
-            }
-            for (String col : _filterColumnsRight) {
-              Object val = getDataFromRight(docId, _columnName2IndexMap.get(col));
-              jc.set(col, val);
-            }
-            //apply the filters on the joined record.. this can be done within the previous loop as well
-            // Create a context and add data
-            // Now evaluate the expression, getting the result
-            Boolean res = (Boolean) _jexlExpression.evaluate(jc);
-            if (!res) {
-              continue;
+            if (_jexlExpression != null) {
+              for (String col : _filterColumnsLeft) {
+                Object val = Array.get(blockValSetMap.get(col), i);
+                jc.set(col, val);
+              }
+              for (String col : _filterColumnsRight) {
+                Object val = getDataFromRight(docId, _columnName2IndexMap.get(col));
+                jc.set(col, val);
+              }
+              //apply the filters on the joined record.. this can be done within the previous loop as well
+              // Create a context and add data
+              // Now evaluate the expression, getting the result
+              Boolean res = (Boolean) _jexlExpression.evaluate(jc);
+              if (!res) {
+                continue;
+              }
             }
             Object[] joinedRow = new Object[_projectColumnsLeft.length + _projectColumnsRight.length];
             int index = 0;
