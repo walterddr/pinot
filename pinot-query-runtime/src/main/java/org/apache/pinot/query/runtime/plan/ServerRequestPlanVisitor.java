@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.pinot.common.datablock.BaseDataBlock;
 import org.apache.pinot.common.datatable.DataTable;
@@ -222,7 +223,9 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     //   1. equality join conditions will be used as join key
     //   2. inequality join conditions will be rewritten as local join filter
     //   3. projects will be rewritten as local project columns
-    attachJoinTable(context.getPinotQuery(), node, block);
+    if (node.getJoinRelType() == JoinRelType.INNER) {
+      attachJoinTable(context.getPinotQuery(), node, block);
+    }
     return _aVoid;
   }
 

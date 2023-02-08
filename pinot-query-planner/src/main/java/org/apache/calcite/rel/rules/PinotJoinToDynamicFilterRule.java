@@ -132,8 +132,15 @@ public class PinotJoinToDynamicFilterRule extends RelOptRule {
     LogicalExchange right = (LogicalExchange) (join.getRight() instanceof HepRelVertex
         ? ((HepRelVertex) join.getRight()).getCurrentRel() : join.getRight());
 
-    LogicalExchange broadcastDynamicFilterExchange = LogicalExchange.create(right.getInput(),
-        RelDistributions.BROADCAST_DISTRIBUTED);
+    PinotRelOptPlannerContext context = (PinotRelOptPlannerContext) call.getPlanner().getContext();
+    LogicalExchange broadcastDynamicFilterExchange;
+    if (context.getOptions().containsKey(PinotRelOptPlannerContext.USE_CO_LOCATED_JOIN)) {
+      broadcastDynamicFilterExchange = LogicalExchange.create(right.getInput(),
+          RelDistributions.SINGLETON);
+    } else {
+      broadcastDynamicFilterExchange = LogicalExchange.create(right.getInput(),
+          RelDistributions.BROADCAST_DISTRIBUTED);
+    }
     Join dynamicFilterJoin =
         new LogicalJoin(join.getCluster(), join.getTraitSet(), left.getInput(), broadcastDynamicFilterExchange,
             join.getCondition(), join.getVariablesSet(), join.getJoinType(), join.isSemiJoinDone(),

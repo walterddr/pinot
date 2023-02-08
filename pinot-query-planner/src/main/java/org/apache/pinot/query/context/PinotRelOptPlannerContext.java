@@ -10,6 +10,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public class PinotRelOptPlannerContext implements Context {
   public static final String USE_DYNAMIC_FILTER = "option_key__USE_DYNAMIC_FILTER";
+  public static final String USE_CO_LOCATED_JOIN = "option_key__USE_COLOCATED_JOIN";
   public static final String USE_HASH_DISTRIBUTE = "option_key__USE_HASH_DISTRIBUTE";
   public static final String USE_BROADCAST_DISTRIBUTE = "option_key__USE_BROADCAST_DISTRIBUTE";
 
