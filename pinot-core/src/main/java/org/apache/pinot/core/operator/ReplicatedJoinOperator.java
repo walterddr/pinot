@@ -33,13 +33,14 @@ import org.apache.commons.jexl3.JexlExpression;
 import org.apache.commons.jexl3.MapContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.pinot.common.datatable.DataTable;
+import org.apache.pinot.common.request.context.ExpressionContext;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.core.common.BlockValSet;
 import org.apache.pinot.core.common.Operator;
 import org.apache.pinot.core.operator.blocks.TransformBlock;
 import org.apache.pinot.core.operator.blocks.results.SelectionResultsBlock;
 import org.apache.pinot.core.operator.transform.TransformOperator;
-import org.apache.pinot.spi.data.FieldSpec;
+import org.apache.pinot.core.operator.transform.TransformResultMetadata;
 
 
 /**
@@ -102,6 +103,26 @@ public class ReplicatedJoinOperator extends BaseOperator<SelectionResultsBlock> 
       _jexl = null;
       _jexlExpression = null;
     }
+    int length = _projectColumnsLeft.length + _projectColumnsRight.length;
+    String[] resultColNames = new String[length];
+    DataSchema.ColumnDataType[] resultColTypes = new DataSchema.ColumnDataType[length];
+    int index = 0;
+    for (String col : _projectColumnsLeft) {
+      ExpressionContext expression = ExpressionContext.forIdentifier(col);
+      TransformResultMetadata expressionMetadata = transformOperator.getResultMetadata(expression);
+      resultColTypes[index] = DataSchema.ColumnDataType.fromDataType(expressionMetadata.getDataType(),
+          expressionMetadata.isSingleValue());
+      resultColNames[index] = expression.toString();
+      index = index + 1;
+    }
+    for (String col : _projectColumnsRight) {
+      resultColTypes[index] =
+          _rightTableMaterialized.getDataSchema().getColumnDataType(_columnName2IndexMap.get(col));
+      resultColNames[index] = col;
+      index = index + 1;
+    }
+    _resultSchema = new DataSchema(resultColNames, resultColTypes);
+    Preconditions.checkState(index >= 0, "Missing join key " + _rightJoinKey + " in the input table for join");
   }
 
   @Override
@@ -111,25 +132,6 @@ public class ReplicatedJoinOperator extends BaseOperator<SelectionResultsBlock> 
     while (transformBlock != null) {
       //build a map of joinKey -> docid on the rightMaterializedTable
       if (!_inited) {
-        int length = _projectColumnsLeft.length + _projectColumnsRight.length;
-        String[] resultColNames = new String[length];
-        DataSchema.ColumnDataType[] resultColTypes = new DataSchema.ColumnDataType[length];
-        int index = 0;
-        for (String col : _projectColumnsLeft) {
-          BlockValSet blockValueSet = transformBlock.getBlockValueSet(col);
-          FieldSpec.DataType valueType = blockValueSet.getValueType();
-          resultColTypes[index] = DataSchema.ColumnDataType.fromDataType(valueType, blockValueSet.isSingleValue());
-          resultColNames[index] = col;
-          index = index + 1;
-        }
-        for (String col : _projectColumnsRight) {
-          resultColTypes[index] =
-              _rightTableMaterialized.getDataSchema().getColumnDataType(_columnName2IndexMap.get(col));
-          resultColNames[index] = col;
-          index = index + 1;
-        }
-        _resultSchema = new DataSchema(resultColNames, resultColTypes);
-        Preconditions.checkState(index >= 0, "Missing join key " + _rightJoinKey + " in the input table for join");
         _keyToDocIdMapping = new HashMap<>();
         int numRows = _rightTableMaterialized.getNumberOfRows();
         int joinIdx = _columnName2IndexMap.get(_rightJoinKey);

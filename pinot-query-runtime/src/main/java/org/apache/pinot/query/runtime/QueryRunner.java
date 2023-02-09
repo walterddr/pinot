@@ -35,8 +35,10 @@ import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.utils.NamedThreadFactory;
 import org.apache.pinot.core.data.manager.InstanceDataManager;
 import org.apache.pinot.core.operator.blocks.InstanceResponseBlock;
+import org.apache.pinot.core.operator.blocks.results.ResultsBlockUtils;
 import org.apache.pinot.core.query.executor.ServerQueryExecutorV1Impl;
 import org.apache.pinot.core.query.request.ServerQueryRequest;
+import org.apache.pinot.core.query.request.context.QueryContext;
 import org.apache.pinot.core.query.scheduler.resources.ResourceManager;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.mailbox.MultiplexingMailboxService;
@@ -145,7 +147,7 @@ public class QueryRunner {
       for (ServerPlanRequestContext requestContext : serverQueryRequests) {
         ServerQueryRequest request = new ServerQueryRequest(requestContext.getInstanceRequest(),
             new ServerMetrics(PinotMetricUtils.getPinotMetricsRegistry()), System.currentTimeMillis());
-        serverQueryResults.add(processServerQuery(request, _scheduler.getWorkerPool()));
+        serverQueryResults.add(processServerQuery(requestContext, request, _scheduler.getWorkerPool()));
       }
       LOGGER.debug(
           "RequestId:" + requestId + " StageId:" + distributedStagePlan.getStageId() + " Leaf stage v1 processing time:"
@@ -214,10 +216,15 @@ public class QueryRunner {
     return requests;
   }
 
-  private InstanceResponseBlock processServerQuery(ServerQueryRequest serverQueryRequest,
-      ExecutorService executorService) {
+  private InstanceResponseBlock processServerQuery(ServerPlanRequestContext requestContext,
+      ServerQueryRequest serverQueryRequest, ExecutorService executorService) {
     try {
-      return _serverExecutor.execute(serverQueryRequest, executorService);
+      if (requestContext.getHints().contains(ServerPlanRequestContext.EMPTY_RETURN_HINT)) {
+        QueryContext queryContext = serverQueryRequest.getQueryContext();
+        return new InstanceResponseBlock(ResultsBlockUtils.buildEmptyQueryResults(queryContext), queryContext);
+      } else {
+        return _serverExecutor.execute(serverQueryRequest, executorService);
+      }
     } catch (Exception e) {
       InstanceResponseBlock errorResponse = new InstanceResponseBlock();
       errorResponse.getExceptions()

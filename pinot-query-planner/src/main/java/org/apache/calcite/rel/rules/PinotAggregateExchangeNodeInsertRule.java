@@ -46,6 +46,7 @@ import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelBuilderFactory;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.ImmutableIntList;
+import org.apache.pinot.query.context.PinotRelOptPlannerContext;
 import org.apache.pinot.query.planner.hints.PinotRelationalHints;
 
 
@@ -112,10 +113,15 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
     // 2. attach exchange.
     List<Integer> groupSetIndices = ImmutableIntList.range(0, oldAggRel.getGroupCount());
     LogicalExchange exchange = null;
-    if (groupSetIndices.size() == 0) {
-      exchange = LogicalExchange.create(newLeafAgg, RelDistributions.hash(Collections.emptyList()));
+    PinotRelOptPlannerContext context = (PinotRelOptPlannerContext) call.getPlanner().getContext();
+    if (context.getOptions().containsKey(PinotRelOptPlannerContext.USE_CO_LOCATED_JOIN)) {
+      exchange = LogicalExchange.create(newLeafAgg, RelDistributions.SINGLETON);
     } else {
-      exchange = LogicalExchange.create(newLeafAgg, RelDistributions.hash(groupSetIndices));
+      if (groupSetIndices.size() == 0) {
+        exchange = LogicalExchange.create(newLeafAgg, RelDistributions.hash(Collections.emptyList()));
+      } else {
+        exchange = LogicalExchange.create(newLeafAgg, RelDistributions.hash(groupSetIndices));
+      }
     }
 
     // 3. attach intermediate agg stage.

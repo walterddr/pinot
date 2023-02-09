@@ -18,10 +18,12 @@
  */
 package org.apache.pinot.query.mailbox;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import io.grpc.ManagedChannel;
 import io.grpc.stub.StreamObserver;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.pinot.common.proto.Mailbox;
 import org.apache.pinot.common.proto.PinotMailboxGrpc;
@@ -55,8 +57,8 @@ public class GrpcMailboxService implements MailboxService<TransferableBlock> {
   private final int _mailboxPort;
 
   // maintaining a list of registered mailboxes.
-  private final ConcurrentHashMap<String, ReceivingMailbox<TransferableBlock>> _receivingMailboxMap =
-      new ConcurrentHashMap<>();
+  private final Cache<String, ReceivingMailbox<TransferableBlock>> _receivingMailboxMap =
+      CacheBuilder.newBuilder().expireAfterAccess(1, TimeUnit.MINUTES).build();
   private final Consumer<MailboxIdentifier> _gotMailCallback;
 
   public GrpcMailboxService(String hostname, int mailboxPort, PinotConfiguration extraConfig,
@@ -106,8 +108,12 @@ public class GrpcMailboxService implements MailboxService<TransferableBlock> {
    * @param mailboxId the id of the mailbox.
    */
   public ReceivingMailbox<TransferableBlock> getReceivingMailbox(MailboxIdentifier mailboxId) {
-    return _receivingMailboxMap.computeIfAbsent(mailboxId.toString(),
-        (mId) -> new GrpcReceivingMailbox(mId, _gotMailCallback));
+    try {
+      return _receivingMailboxMap.get(mailboxId.toString(),
+          () -> new GrpcReceivingMailbox(mailboxId.toString(), _gotMailCallback));
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public ManagedChannel getChannel(String mailboxId) {

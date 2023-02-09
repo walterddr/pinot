@@ -214,11 +214,18 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
         context.getRequestId(), dynamicMailbox.getSenderStageId(), context.getTimeoutMs());
     TransferableBlock block = receiveDataBlock(mailboxReceiveOperator, dynamicMailbox.getDataSchema(),
         context.getTimeoutMs());
-    context.setDynamicOperatorResult(block);
+
     // step 2: write filter expression
     //   1. join keys will be rewritten as either IN clause or IN_IDSET
     //   2. inequality joins will be rewritten as min/max range filter
-    attachDynamicFilter(context.getPinotQuery(), node.getJoinKeys(), block);
+    context.setDynamicOperatorResult(block);
+    if (block.getNumRows() > 0) {
+      attachDynamicFilter(context.getPinotQuery(), node.getJoinKeys(), block);
+    } else {
+      // filter is empty, we can return a constant empty block.
+      context.addHints(ServerPlanRequestContext.EMPTY_RETURN_HINT);
+    }
+
     // step 3: write project expression
     //   1. equality join conditions will be used as join key
     //   2. inequality join conditions will be rewritten as local join filter
@@ -477,7 +484,7 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
   private static TransferableBlock receiveDataBlock(MultiStageOperator baseOperator,
       DataSchema dataSchema, long timeoutMs) {
   long timeoutWatermark = System.nanoTime() + timeoutMs * 1_000_000L;
-    TransferableBlock mergedBlock = new TransferableBlock(new ArrayList<>(), dataSchema, BaseDataBlock.Type.ROW);
+    List<Object[]> dataContainer = new ArrayList<>();
     while (System.nanoTime() < timeoutWatermark) {
       TransferableBlock transferableBlock = baseOperator.nextBlock();
       if (TransferableBlockUtils.isEndOfStream(transferableBlock) && transferableBlock.isErrorBlock()) {
@@ -489,10 +496,10 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
       if (transferableBlock.isNoOpBlock()) {
         continue;
       } else if (transferableBlock.isEndOfStreamBlock()) {
-        return mergedBlock;
+        return new TransferableBlock(dataContainer, dataSchema, BaseDataBlock.Type.ROW);
       }
-      mergedBlock.getContainer().addAll(transferableBlock.getContainer());
+      dataContainer.addAll(transferableBlock.getContainer());
     }
-    return mergedBlock;
+    return new TransferableBlock(dataContainer, dataSchema, BaseDataBlock.Type.ROW);
   }
 }
