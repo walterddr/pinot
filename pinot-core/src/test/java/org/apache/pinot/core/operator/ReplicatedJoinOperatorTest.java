@@ -67,6 +67,7 @@ public class ReplicatedJoinOperatorTest {
   private String[] _columns;
   private QueryContext _queryContext;
 
+  private String _dataTableName;
   private DataTable _dataTable;
 
   private void setUpDataTable()
@@ -89,6 +90,7 @@ public class ReplicatedJoinOperatorTest {
       dataTableBuilder.finishRow();
     }
 
+    _dataTableName = "rightTable";
     _dataTable = dataTableBuilder.build();
   }
 
@@ -176,9 +178,10 @@ public class ReplicatedJoinOperatorTest {
     ProjectionOperator projectionOperator = new ProjectionOperator(dataSourceMap, docIdSetOperator);
     TransformOperator transformOperator = new TransformOperator(_queryContext, projectionOperator, expressions);
 
+    _queryContext.getOrComputeSharedValue(DataTable.class, _dataTableName, (key) -> _dataTable);
     ReplicatedJoinOperator joinOperator =
-        new ReplicatedJoinOperator(1000, transformOperator, _dataTable, leftJoinKey, rightJoinKey, filterColumnsLeft,
-            filterColumnsRight, "c > f", projectColumnsLeft, projectColumnsRight);
+        new ReplicatedJoinOperator(_queryContext, 1000, transformOperator, _dataTableName, leftJoinKey, rightJoinKey,
+            filterColumnsLeft, filterColumnsRight, "c > f", projectColumnsLeft, projectColumnsRight);
 
     ArrayList<Object[]> rows = new ArrayList<>();
     SelectionResultsBlock block = joinOperator.getNextBlock();
@@ -213,9 +216,10 @@ public class ReplicatedJoinOperatorTest {
     ProjectionOperator projectionOperator = new ProjectionOperator(dataSourceMap, docIdSetOperator);
     TransformOperator transformOperator = new TransformOperator(_queryContext, projectionOperator, expressions);
 
+    _queryContext.getOrComputeSharedValue(DataTable.class, _dataTableName, (key) -> _dataTable);
     ReplicatedJoinOperator joinOperator =
-        new ReplicatedJoinOperator(1000, transformOperator, _dataTable, leftJoinKey, rightJoinKey, filterColumnsLeft,
-            filterColumnsRight, "c > f and c > 0", projectColumnsLeft, projectColumnsRight);
+        new ReplicatedJoinOperator(_queryContext, 1000, transformOperator, _dataTableName, leftJoinKey, rightJoinKey,
+            filterColumnsLeft, filterColumnsRight, "c > f and c > 0", projectColumnsLeft, projectColumnsRight);
 
     ArrayList<Object[]> rows = new ArrayList<>();
     SelectionResultsBlock block = joinOperator.getNextBlock();
@@ -250,9 +254,10 @@ public class ReplicatedJoinOperatorTest {
     ProjectionOperator projectionOperator = new ProjectionOperator(dataSourceMap, docIdSetOperator);
     TransformOperator transformOperator = new TransformOperator(_queryContext, projectionOperator, expressions);
 
+    _queryContext.getOrComputeSharedValue(DataTable.class, _dataTableName, (key) -> _dataTable);
     ReplicatedJoinOperator joinOperator =
-        new ReplicatedJoinOperator(1000, transformOperator, _dataTable, leftJoinKey, rightJoinKey, filterColumnsLeft,
-            filterColumnsRight, "c == f", projectColumnsLeft, projectColumnsRight);
+        new ReplicatedJoinOperator(_queryContext, 1000, transformOperator, _dataTableName, leftJoinKey, rightJoinKey,
+            filterColumnsLeft, filterColumnsRight, "c == f", projectColumnsLeft, projectColumnsRight);
 
     ArrayList<Object[]> rows = new ArrayList<>();
     SelectionResultsBlock block = joinOperator.getNextBlock();
@@ -287,9 +292,10 @@ public class ReplicatedJoinOperatorTest {
     ProjectionOperator projectionOperator = new ProjectionOperator(dataSourceMap, docIdSetOperator);
     TransformOperator transformOperator = new TransformOperator(_queryContext, projectionOperator, expressions);
 
+    _queryContext.getOrComputeSharedValue(DataTable.class, _dataTableName, (key) -> _dataTable);
     ReplicatedJoinOperator joinOperator =
-        new ReplicatedJoinOperator(1000, transformOperator, _dataTable, leftJoinKey, rightJoinKey, filterColumnsLeft,
-            filterColumnsRight, "c == f or c > 0", projectColumnsLeft, projectColumnsRight);
+        new ReplicatedJoinOperator(_queryContext, 1000, transformOperator, _dataTableName, leftJoinKey, rightJoinKey,
+            filterColumnsLeft, filterColumnsRight, "c == f or c > 0", projectColumnsLeft, projectColumnsRight);
 
     ArrayList<Object[]> rows = new ArrayList<>();
     SelectionResultsBlock block = joinOperator.getNextBlock();

@@ -114,17 +114,18 @@ public class LocalJoinPlanNode implements PlanNode {
             filterOperator).run();
 
     Map<String, String> queryOptions = _queryContext.getQueryOptions();
-    DataTable dataTable = null;
-    String dataTableStr = QueryOptionsUtils.getInMemoryDataTable(queryOptions, rightTableName);
-    try {
-      dataTable = DataTableFactory.getDataTable(Base64.getDecoder().decode(dataTableStr));
-    } catch (IOException e) {
-      LOGGER.error("Got exception while deserializing data table:" + e);
-      assert false;
-    }
+    _queryContext.getOrComputeSharedValue(DataTable.class, rightTableName, (tableName) -> {
+      String dataTableStr = QueryOptionsUtils.getInMemoryDataTable(queryOptions, tableName);
+      try {
+        return DataTableFactory.getDataTable(Base64.getDecoder().decode(dataTableStr));
+      } catch (IOException e) {
+        LOGGER.error("Got exception while deserializing data table:" + e);
+        throw new RuntimeException(e);
+      }
+    });
 
-    return new ReplicatedJoinOperator(numTotalDocs, transformOperator, dataTable, leftJoinKey, rightJoinKey,
-        leftFilterColumns.toArray(new String[leftFilterColumns.size()]),
+    return new ReplicatedJoinOperator(_queryContext, numTotalDocs, transformOperator, rightTableName, leftJoinKey,
+        rightJoinKey, leftFilterColumns.toArray(new String[leftFilterColumns.size()]),
         rightFilterColumns.toArray(new String[rightFilterColumns.size()]), filterExpression,
         leftProjectColumns.toArray(new String[leftProjectColumns.size()]),
         rightProjectColumns.toArray(new String[rightProjectColumns.size()]));

@@ -41,6 +41,7 @@ import org.apache.pinot.core.operator.blocks.TransformBlock;
 import org.apache.pinot.core.operator.blocks.results.SelectionResultsBlock;
 import org.apache.pinot.core.operator.transform.TransformOperator;
 import org.apache.pinot.core.operator.transform.TransformResultMetadata;
+import org.apache.pinot.core.query.request.context.QueryContext;
 
 
 /**
@@ -53,7 +54,11 @@ import org.apache.pinot.core.operator.transform.TransformResultMetadata;
 public class ReplicatedJoinOperator extends BaseOperator<SelectionResultsBlock> {
 
   private static final String EXPLAIN_NAME = "AGGREGATE";
+
+  private final QueryContext _queryContext;
+
   private final TransformOperator _leftTableStream;
+  private final String _rightTableName;
   private final DataTable _rightTableMaterialized;
   private final String[] _filterColumnsLeft;
   private final String[] _filterColumnsRight;
@@ -66,17 +71,19 @@ public class ReplicatedJoinOperator extends BaseOperator<SelectionResultsBlock> 
   private int _numDocsScanned = 0;
 
   private final int _numDocs;
-  boolean _inited = false;
   String _leftJoinKey;
   String _rightJoinKey;
   Map<Object, List<Integer>> _keyToDocIdMapping;
   Map<String, Integer> _columnName2IndexMap;
   private DataSchema _resultSchema;
 
-  public ReplicatedJoinOperator(int numDocs, TransformOperator transformOperator, DataTable dataTable,
-      String leftJoinKey, String rightJoinKey, String[] filterColumnsLeft, String[] filterColumnsRight,
-      String postJoinFilterPredicate, String[] projectColumnsLeft, String[] projectColumnsRight) {
+  public ReplicatedJoinOperator(QueryContext queryContext, int numDocs, TransformOperator transformOperator,
+      String rightTableName, String leftJoinKey, String rightJoinKey, String[] filterColumnsLeft,
+      String[] filterColumnsRight, String postJoinFilterPredicate, String[] projectColumnsLeft,
+      String[] projectColumnsRight) {
+    _queryContext = queryContext;
     _numDocs = numDocs;
+    _rightTableName = rightTableName;
     _leftTableStream = transformOperator;
     _leftJoinKey = leftJoinKey;
     _rightJoinKey = rightJoinKey;
@@ -84,7 +91,9 @@ public class ReplicatedJoinOperator extends BaseOperator<SelectionResultsBlock> 
     _filterColumnsRight = filterColumnsRight;
     _projectColumnsLeft = projectColumnsLeft;
     _projectColumnsRight = projectColumnsRight;
-    _rightTableMaterialized = dataTable;
+    _rightTableMaterialized = queryContext.getOrComputeSharedValue(DataTable.class, _rightTableName, (key) -> {
+      throw new RuntimeException("table should be materialized by now");
+    });
     _columnName2IndexMap = new HashMap<>();
     String[] columnNames = _rightTableMaterialized.getDataSchema().getColumnNames();
     for (int i = 0; i < columnNames.length; i++) {
@@ -131,17 +140,17 @@ public class ReplicatedJoinOperator extends BaseOperator<SelectionResultsBlock> 
     List<Object[]> rows = new ArrayList<>();
     while (transformBlock != null) {
       //build a map of joinKey -> docid on the rightMaterializedTable
-      if (!_inited) {
-        _keyToDocIdMapping = new HashMap<>();
+      _keyToDocIdMapping = _queryContext.getOrComputeSharedValue(Map.class, _rightTableName, (key) -> {
+        Map<Object, List<Integer>> keyToDocIdMapping = new HashMap<>();
         int numRows = _rightTableMaterialized.getNumberOfRows();
         int joinIdx = _columnName2IndexMap.get(_rightJoinKey);
         for (int rowId = 0; rowId < numRows; rowId++) {
           Object val = getDataFromRight(rowId, joinIdx);
-          _keyToDocIdMapping.putIfAbsent(val, new ArrayList<>());
-          _keyToDocIdMapping.get(val).add(rowId);
+          keyToDocIdMapping.putIfAbsent(val, new ArrayList<>());
+          keyToDocIdMapping.get(val).add(rowId);
         }
-        _inited = true;
-      }
+        return keyToDocIdMapping;
+      });
       //for each block we process on the left table
       //when we stream the left table for each row, join with the records that match in right table..
       //Each row from left can match 0 or more records on the right table
