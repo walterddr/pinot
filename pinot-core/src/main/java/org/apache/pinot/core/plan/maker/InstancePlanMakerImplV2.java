@@ -42,6 +42,7 @@ import org.apache.pinot.core.plan.DistinctPlanNode;
 import org.apache.pinot.core.plan.GlobalPlanImplV0;
 import org.apache.pinot.core.plan.GroupByPlanNode;
 import org.apache.pinot.core.plan.InstanceResponsePlanNode;
+import org.apache.pinot.core.plan.LocalJoinPlanNode;
 import org.apache.pinot.core.plan.Plan;
 import org.apache.pinot.core.plan.PlanNode;
 import org.apache.pinot.core.plan.SelectionPlanNode;
@@ -241,6 +242,8 @@ public class InstancePlanMakerImplV2 implements PlanMaker {
         // Aggregation query
         return new AggregationPlanNode(indexSegment, queryContext);
       }
+    } else if (QueryContextUtils.isLocalJoinQuery(queryContext)) {
+      return new LocalJoinPlanNode(indexSegment, queryContext);
     } else if (QueryContextUtils.isSelectionQuery(queryContext)) {
       return new SelectionPlanNode(indexSegment, queryContext);
     } else {

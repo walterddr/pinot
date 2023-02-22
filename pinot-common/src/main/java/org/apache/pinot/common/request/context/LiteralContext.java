@@ -115,10 +115,10 @@ public class LiteralContext {
 
   @Override
   public String toString() {
-    if (_value == null) {
-      return "null";
+    if (_value instanceof String) {
+      return '\'' + (String) _value + '\'';
+    } else {
+      return String.valueOf(_value);
     }
-    // TODO: print out the type.
-    return '\'' + _value.toString() + '\'';
   }
 }

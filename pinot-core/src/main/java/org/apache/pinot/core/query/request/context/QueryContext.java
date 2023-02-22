@@ -407,6 +407,14 @@ public class QueryContext {
     return ((ConcurrentHashMap<K, V>) _sharedValues.apply(type)).computeIfAbsent(key, mapper);
   }
 
+  public <K, V> V putSharedValue(Class<V> type, K key, V value) {
+    return ((ConcurrentHashMap<K, V>) _sharedValues.apply(type)).put(key, value);
+  }
+
+  public <K, V> V getSharedValue(Class<V> type, K key) {
+    return ((ConcurrentHashMap<K, V>) _sharedValues.apply(type)).get(key);
+  }
+
   /**
    * NOTE: For debugging only.
    */

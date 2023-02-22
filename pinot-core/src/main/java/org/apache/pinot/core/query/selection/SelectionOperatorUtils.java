@@ -41,6 +41,7 @@ import org.apache.pinot.common.utils.DataSchema.ColumnDataType;
 import org.apache.pinot.core.common.datatable.DataTableBuilder;
 import org.apache.pinot.core.common.datatable.DataTableBuilderFactory;
 import org.apache.pinot.core.query.request.context.QueryContext;
+import org.apache.pinot.core.query.request.context.utils.QueryContextUtils;
 import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.spi.trace.Tracing;
 import org.apache.pinot.spi.utils.ArrayCopyUtils;
@@ -157,6 +158,8 @@ public class SelectionOperatorUtils {
       }
       allColumns.sort(null);
       return allColumns;
+    } else if (QueryContextUtils.isLocalJoinQuery(queryContext)) {
+      return Arrays.asList(dataSchema.getColumnNames());
     } else {
       List<String> columns = new ArrayList<>(numSelectExpressions);
       for (ExpressionContext selectExpression : selectExpressions) {

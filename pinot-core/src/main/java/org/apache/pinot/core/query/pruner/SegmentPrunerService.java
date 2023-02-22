@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import org.apache.pinot.core.query.config.SegmentPrunerConfig;
 import org.apache.pinot.core.query.request.context.QueryContext;
+import org.apache.pinot.core.query.request.context.utils.QueryContextUtils;
 import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.spi.trace.InvocationScope;
 import org.apache.pinot.spi.trace.Tracing;
@@ -97,7 +98,9 @@ public class SegmentPrunerService {
    */
   public List<IndexSegment> prune(List<IndexSegment> segments, QueryContext query, SegmentPrunerStatistics stats) {
     try (InvocationScope scope = Tracing.getTracer().createScope(SegmentPrunerService.class)) {
-      segments = removeInvalidSegments(segments, query, stats);
+      if (!QueryContextUtils.isLocalJoinQuery(query)) {
+        segments = removeInvalidSegments(segments, query, stats);
+      }
       int invokedPrunersCount = 0;
       for (SegmentPruner segmentPruner : _segmentPruners) {
         if (segmentPruner.isApplicableTo(query)) {

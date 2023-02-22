@@ -68,6 +68,24 @@ public class QueryContextUtils {
         && aggregationFunctions[0] instanceof DistinctAggregationFunction;
   }
 
+  /**
+   * Returns {@code true} if the given query is a local join query, {@code false} otherwise.
+   */
+  public static boolean isLocalJoinQuery(QueryContext query) {
+    if (query.getAggregationFunctions() != null) {
+      return false;
+    }
+    List<ExpressionContext> selectExpressions = query.getSelectExpressions();
+    if (selectExpressions.size() != 1) {
+      return false;
+    }
+    FunctionContext function = selectExpressions.get(0).getFunction();
+    if (function == null) {
+      return false;
+    }
+    return function.getFunctionName().equals("localjoin");
+  }
+
   /** Collect aggregation functions (except for the ones in filter). */
   public static void collectPostAggregations(QueryContext queryContext, Set<String> postAggregations) {
 
