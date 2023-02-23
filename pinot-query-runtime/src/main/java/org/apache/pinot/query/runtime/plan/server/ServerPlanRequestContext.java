@@ -18,7 +18,9 @@
  */
 package org.apache.pinot.query.runtime.plan.server;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import org.apache.pinot.common.request.InstanceRequest;
 import org.apache.pinot.common.request.PinotQuery;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
@@ -35,16 +37,22 @@ import org.apache.pinot.spi.config.table.TableType;
  * {@link PinotQuery} to execute on server.
  */
 public class ServerPlanRequestContext extends PlanRequestContext {
+  public static final String EMPTY_RETURN_HINT = "constant_empty_return";
+
   protected TableType _tableType;
   protected TimeBoundaryInfo _timeBoundaryInfo;
 
   protected PinotQuery _pinotQuery;
+  protected TransferableBlock _dynamicOperatorRes;
   protected InstanceRequest _instanceRequest;
+
+  protected Set<String> _hints;
 
   public ServerPlanRequestContext(MailboxService<TransferableBlock> mailboxService, long requestId, int stageId,
       long timeoutMs, VirtualServerAddress server, Map<Integer, StageMetadata> metadataMap, PinotQuery pinotQuery,
       TableType tableType, TimeBoundaryInfo timeBoundaryInfo) {
     super(mailboxService, requestId, stageId, timeoutMs, server, metadataMap);
+    _hints = new HashSet<>();
     _pinotQuery = pinotQuery;
     _tableType = tableType;
     _timeBoundaryInfo = timeBoundaryInfo;
@@ -64,5 +72,21 @@ public class ServerPlanRequestContext extends PlanRequestContext {
 
   public InstanceRequest getInstanceRequest() {
     return _instanceRequest;
+  }
+
+  public void setDynamicOperatorResult(TransferableBlock transferableBlock) {
+    _dynamicOperatorRes = transferableBlock;
+  }
+
+  public TransferableBlock getDynamicOperatorResult() {
+    return _dynamicOperatorRes;
+  }
+
+  public void addHints(String hint) {
+    _hints.add(hint);
+  }
+
+  public Set<String> getHints() {
+    return _hints;
   }
 }

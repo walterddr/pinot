@@ -215,8 +215,9 @@ public class QueryRunnerTest extends QueryRunnerTestBase {
   @DataProvider(name = "testDataWithSqlToFinalRowCount")
   private Object[][] provideTestSqlAndRowCount() {
     return new Object[][] {
-        // using join clause
-        new Object[]{"SELECT * FROM a JOIN b USING (col1)", 15},
+        // using join dynamic filter
+        new Object[]{"SELECT /*+ joinStrategy(dynamic_filter) */ a.col1, a.col3 FROM a JOIN b ON a.col1 = b.col1 "
+            + " AND a.col3 = b.col3", 15},
 
         // cannot compare with H2 w/o an ORDER BY because ordering is indeterminate
         new Object[]{"SELECT * FROM a LIMIT 2", 2},

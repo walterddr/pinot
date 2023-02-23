@@ -20,13 +20,17 @@ package org.apache.pinot.query;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import org.apache.helix.HelixManager;
 import org.apache.helix.store.zk.ZkHelixPropertyStore;
 import org.apache.helix.zookeeper.datamodel.ZNRecord;
 import org.apache.pinot.common.metrics.ServerMetrics;
+import org.apache.pinot.common.utils.NamedThreadFactory;
 import org.apache.pinot.common.utils.SchemaUtils;
 import org.apache.pinot.core.data.manager.InstanceDataManager;
+import org.apache.pinot.core.query.scheduler.resources.ResourceManager;
 import org.apache.pinot.query.runtime.QueryRunner;
 import org.apache.pinot.query.runtime.plan.DistributedStagePlan;
 import org.apache.pinot.query.service.QueryConfig;
@@ -59,6 +63,8 @@ import static org.mockito.Mockito.when;
 public class QueryServerEnclosure {
   private static final String TABLE_CONFIGS_PREFIX = "/CONFIGS/TABLE/";
   private static final String SCHEMAS_PREFIX = "/SCHEMAS/";
+  private static final ExecutorService EXECUTOR_SERVICE = Executors.newFixedThreadPool(
+      ResourceManager.DEFAULT_QUERY_WORKER_THREADS, new NamedThreadFactory("QueryServerEnclosureExecutorService"));
 
   private final int _queryRunnerPort;
   private final Map<String, Object> _runnerConfig = new HashMap<>();
@@ -125,6 +131,6 @@ public class QueryServerEnclosure {
   }
 
   public void processQuery(DistributedStagePlan distributedStagePlan, Map<String, String> requestMetadataMap) {
-    _queryRunner.processQuery(distributedStagePlan, requestMetadataMap);
+    EXECUTOR_SERVICE.submit(() -> _queryRunner.processQuery(distributedStagePlan, requestMetadataMap));
   }
 }
