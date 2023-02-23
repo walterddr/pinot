@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.calcite.rel.hint.PinotHintUtils;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.core.transport.ServerInstance;
 import org.apache.pinot.query.planner.stage.AggregateNode;
@@ -74,7 +75,7 @@ public class StageMetadata implements Serializable {
     if (stageNode instanceof AggregateNode) {
       AggregateNode aggNode = (AggregateNode) stageNode;
       _requiresSingletonInstance = _requiresSingletonInstance || (aggNode.getGroupSet().size() == 0
-          && AggregateNode.isFinalStage(aggNode));
+          && PinotHintUtils.isAggFinalStage(aggNode.getRelHints()));
     }
     if (stageNode instanceof SortNode) {
       SortNode sortNode = (SortNode) stageNode;

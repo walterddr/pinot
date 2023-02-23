@@ -36,6 +36,7 @@ import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.hint.PinotHintStrategyTable;
+import org.apache.calcite.rel.hint.PinotHintUtils;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalExchange;
@@ -51,7 +52,6 @@ import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelBuilderFactory;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.ImmutableIntList;
-import org.apache.pinot.query.planner.stage.AggregateNode;
 
 
 /**
@@ -76,6 +76,10 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
       new PinotAggregateExchangeNodeInsertRule(PinotRuleUtils.PINOT_REL_FACTORY);
   private static final Set<SqlKind> SUPPORTED_AGG_KIND = ImmutableSet.of(
       SqlKind.SUM, SqlKind.SUM0, SqlKind.MIN, SqlKind.MAX, SqlKind.COUNT, SqlKind.OTHER_FUNCTION);
+  private static final RelHint FINAL_STAGE_HINT = RelHint.builder(
+      PinotHintStrategyTable.INTERNAL_AGG_FINAL_STAGE).build();
+  private static final RelHint INTERMEDIATE_STAGE_HINT = RelHint.builder(
+      PinotHintStrategyTable.INTERNAL_AGG_INTERMEDIATE_STAGE).build();
 
   public PinotAggregateExchangeNodeInsertRule(RelBuilderFactory factory) {
     super(operand(LogicalAggregate.class, any()), factory, null);
@@ -88,8 +92,11 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
     }
     if (call.rel(0) instanceof Aggregate) {
       Aggregate agg = call.rel(0);
-      return !agg.getHints().contains(AggregateNode.INTERMEDIATE_STAGE_HINT)
-          && !agg.getHints().contains(AggregateNode.FINAL_STAGE_HINT);
+      // TODO:
+      //    - current behavior: user hint with 'aggFinalStage' indicating data is partitioned with group-by key
+      //    - correct behavior: Propagate RelHint with partitionKey to verify data is partitioned with group-by key
+      return !PinotHintUtils.isAggFinalStage(agg.getHints())
+          && !PinotHintUtils.isAggIntermediateStage(agg.getHints());
     }
     return false;
   }
@@ -119,7 +126,7 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
 
     // 1. attach leaf agg RelHint to original agg.
     ImmutableList<RelHint> newLeafAggHints =
-        new ImmutableList.Builder<RelHint>().addAll(oldHints).add(AggregateNode.INTERMEDIATE_STAGE_HINT).build();
+        new ImmutableList.Builder<RelHint>().addAll(oldHints).add(INTERMEDIATE_STAGE_HINT).build();
     Aggregate newLeafAgg =
         new LogicalAggregate(oldAggRel.getCluster(), oldAggRel.getTraitSet(), newLeafAggHints, oldAggRel.getInput(),
             oldAggRel.getGroupSet(), oldAggRel.getGroupSets(), oldAggRel.getAggCallList());
@@ -166,7 +173,7 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
     // create new aggregate relation.
     ImmutableList<RelHint> orgHints = oldAggRel.getHints();
     ImmutableList<RelHint> newIntermediateAggHints =
-        new ImmutableList.Builder<RelHint>().addAll(orgHints).add(AggregateNode.FINAL_STAGE_HINT).build();
+        new ImmutableList.Builder<RelHint>().addAll(orgHints).add(FINAL_STAGE_HINT).build();
     ImmutableBitSet groupSet = groupByList == null ? ImmutableBitSet.range(nGroups) : ImmutableBitSet.of(groupByList);
     relBuilder.aggregate(
         relBuilder.groupKey(groupSet, ImmutableList.of(groupSet)),

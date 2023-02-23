@@ -21,6 +21,8 @@ package org.apache.pinot.query.planner.stage;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.hint.PinotHintStrategyTable;
+import org.apache.calcite.rel.hint.RelHint;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.query.planner.logical.RexExpression;
 import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
@@ -29,6 +31,8 @@ import org.apache.pinot.query.planner.serde.ProtoProperties;
 
 
 public class JoinNode extends AbstractStageNode {
+  public static final RelHint JOIN_STRATEGY = RelHint.builder(PinotHintStrategyTable.JOIN_STRATEGY_HINT_KEY).build();
+
   @ProtoProperties
   private JoinRelType _joinRelType;
   @ProtoProperties

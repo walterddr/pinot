@@ -30,7 +30,8 @@ public class PinotHintStrategyTable {
 
   public static final String SKIP_LEAF_STAGE_GROUP_BY_AGGREGATION = "skipLeafStageGroupByAggregation";
 
-
+  public static final String TABLE_PARTITION_HINT_KEY = "partitioned";
+  public static final String JOIN_STRATEGY_HINT_KEY = "joinStrategy";
 
   private PinotHintStrategyTable() {
     // do not instantiate.
@@ -40,6 +41,8 @@ public class PinotHintStrategyTable {
       .hintStrategy(INTERNAL_AGG_INTERMEDIATE_STAGE, HintPredicates.AGGREGATE)
       .hintStrategy(INTERNAL_AGG_FINAL_STAGE, HintPredicates.AGGREGATE)
       .hintStrategy(SKIP_LEAF_STAGE_GROUP_BY_AGGREGATION, HintPredicates.AGGREGATE)
+      .hintStrategy(TABLE_PARTITION_HINT_KEY, HintPredicates.TABLE_SCAN)
+      .hintStrategy(JOIN_STRATEGY_HINT_KEY, HintPredicates.JOIN)
       .build();
 
   public static boolean containsHint(ImmutableList<RelHint> hintList, String hintName) {

@@ -108,6 +108,35 @@ public class QueryCompilationTest extends QueryEnvironmentTestBase {
   }
 
   @Test
+  public void testQueryWithDynamicFilterOption()
+      throws Exception {
+    String query = "SELECT /*+ joinStrategy(dynamic_filter) */ * FROM a JOIN b ON a.col1 = b.col2";
+    QueryPlan queryPlan = _queryEnvironment.planQuery(query);
+    Assert.assertEquals(queryPlan.getQueryStageMap().size(), 4);
+    Assert.assertEquals(queryPlan.getStageMetadataMap().size(), 4);
+    for (Map.Entry<Integer, StageMetadata> e : queryPlan.getStageMetadataMap().entrySet()) {
+      List<String> tables = e.getValue().getScannedTables();
+      if (tables.size() == 1) {
+        // table scan stages; for tableA it should have 2 hosts, for tableB it should have only 1
+        Assert.assertEquals(e.getValue().getServerInstances().stream()
+                .map(VirtualServer::toString).sorted().collect(Collectors.toList()),
+            tables.get(0).equals("a") ? ImmutableList.of("0@Server_localhost_1", "0@Server_localhost_2")
+                : ImmutableList.of("0@Server_localhost_1"));
+      } else if (!PlannerUtils.isRootStage(e.getKey())) {
+        // join stage should have both servers used.
+        Assert.assertEquals(e.getValue().getServerInstances().stream()
+                .map(VirtualServer::toString).sorted().collect(Collectors.toList()),
+            ImmutableList.of("0@Server_localhost_1", "0@Server_localhost_2"));
+      } else {
+        // reduce stage should have the reducer instance.
+        Assert.assertEquals(
+            e.getValue().getServerInstances().stream().map(VirtualServer::toString).collect(Collectors.toList()),
+            ImmutableList.of("0@Server_localhost_3"));
+      }
+    }
+  }
+
+  @Test
   public void testQueryAndAssertStageContentForJoin()
       throws Exception {
     String query = "SELECT * FROM a JOIN b ON a.col1 = b.col2";
