@@ -43,19 +43,20 @@ public class ServerPlanRequestContext extends PlanRequestContext {
   protected TimeBoundaryInfo _timeBoundaryInfo;
 
   protected PinotQuery _pinotQuery;
-  protected TransferableBlock _dynamicOperatorRes;
+  protected TransferableBlock _dynamicMailboxResultBlock;
   protected InstanceRequest _instanceRequest;
 
   protected Set<String> _hints;
 
   public ServerPlanRequestContext(MailboxService<TransferableBlock> mailboxService, long requestId, int stageId,
       long timeoutMs, VirtualServerAddress server, Map<Integer, StageMetadata> metadataMap, PinotQuery pinotQuery,
-      TableType tableType, TimeBoundaryInfo timeBoundaryInfo) {
+      TableType tableType, TimeBoundaryInfo timeBoundaryInfo, TransferableBlock dynamicMailboxResultBlock) {
     super(mailboxService, requestId, stageId, timeoutMs, server, metadataMap);
     _hints = new HashSet<>();
     _pinotQuery = pinotQuery;
     _tableType = tableType;
     _timeBoundaryInfo = timeBoundaryInfo;
+    _dynamicMailboxResultBlock = dynamicMailboxResultBlock;
   }
 
   public TableType getTableType() {
@@ -66,21 +67,19 @@ public class ServerPlanRequestContext extends PlanRequestContext {
     return _pinotQuery;
   }
 
-  public void setInstanceRequest(InstanceRequest instanceRequest) {
-    _instanceRequest = instanceRequest;
-  }
-
   public InstanceRequest getInstanceRequest() {
     return _instanceRequest;
   }
 
-  public void setDynamicOperatorResult(TransferableBlock transferableBlock) {
-    _dynamicOperatorRes = transferableBlock;
+  public TransferableBlock getDynamicOperatorResult() {
+    return _dynamicMailboxResultBlock;
   }
 
-  public TransferableBlock getDynamicOperatorResult() {
-    return _dynamicOperatorRes;
+  public void setInstanceRequest(InstanceRequest instanceRequest) {
+    _instanceRequest = instanceRequest;
   }
+
+  // Only hints are modifiable for PlanRequestContext
 
   public void addHints(String hint) {
     _hints.add(hint);

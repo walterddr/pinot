@@ -22,7 +22,6 @@ import com.clearspring.analytics.util.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,8 +31,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.pinot.common.datablock.BaseDataBlock;
-import org.apache.pinot.common.datatable.DataTable;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.request.DataSource;
 import org.apache.pinot.common.request.Expression;
@@ -45,8 +42,6 @@ import org.apache.pinot.common.request.QuerySource;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.config.QueryOptionsUtils;
 import org.apache.pinot.common.utils.request.RequestUtils;
-import org.apache.pinot.core.common.datatable.DataTableBuilder;
-import org.apache.pinot.core.common.datatable.DataTableBuilderFactory;
 import org.apache.pinot.core.query.optimizer.QueryOptimizer;
 import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.query.mailbox.MailboxService;
@@ -65,12 +60,8 @@ import org.apache.pinot.query.planner.stage.StageNodeVisitor;
 import org.apache.pinot.query.planner.stage.TableScanNode;
 import org.apache.pinot.query.planner.stage.ValueNode;
 import org.apache.pinot.query.planner.stage.WindowNode;
-import org.apache.pinot.query.routing.VirtualServer;
 import org.apache.pinot.query.routing.VirtualServerAddress;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
-import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
-import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
-import org.apache.pinot.query.runtime.operator.MultiStageOperator;
 import org.apache.pinot.query.runtime.plan.server.ServerPlanRequestContext;
 import org.apache.pinot.query.service.QueryConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
@@ -113,7 +104,8 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
 
   public static ServerPlanRequestContext build(MailboxService<TransferableBlock> mailboxService,
       DistributedStagePlan stagePlan, Map<String, String> requestMetadataMap, TableConfig tableConfig, Schema schema,
-      TimeBoundaryInfo timeBoundaryInfo, TableType tableType, List<String> segmentList) {
+      TimeBoundaryInfo timeBoundaryInfo, TableType tableType, List<String> segmentList,
+      TransferableBlock dynamicMailboxResultBlock) {
     // Before-visit: construct the ServerPlanRequestContext baseline
     long requestId = Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_ID));
     long timeoutMs = Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_TIMEOUT_MS));
@@ -135,7 +127,7 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     ServerPlanRequestContext context =
         new ServerPlanRequestContext(mailboxService, requestId, stagePlan.getStageId(), timeoutMs,
             new VirtualServerAddress(stagePlan.getServer()), stagePlan.getMetadataMap(), pinotQuery, tableType,
-            timeBoundaryInfo);
+            timeBoundaryInfo, dynamicMailboxResultBlock);
 
     ServerRequestPlanVisitor.walkStageNode(stagePlan.getStageRoot(), context);
 
@@ -215,19 +207,11 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
 
     // rewrite context for JOIN as dynamic filter
     // step 1: get the other-side's result.
-    MailboxReceiveNode dynamicMailbox = (MailboxReceiveNode) dynamicSide;
-    List<VirtualServer> sendingInstances = context.getMetadataMap().get(dynamicMailbox.getSenderStageId())
-        .getServerInstances();
-    MailboxReceiveOperator mailboxReceiveOperator = new MailboxReceiveOperator(context.getMailboxService(),
-        sendingInstances, dynamicMailbox.getExchangeType(), context.getServer(), context.getRequestId(),
-        dynamicMailbox.getSenderStageId(), context.getStageId(), context.getTimeoutMs());
-    TransferableBlock block = receiveDataBlock(mailboxReceiveOperator, dynamicMailbox.getDataSchema(),
-        context.getTimeoutMs());
+    TransferableBlock block = context.getDynamicOperatorResult();
 
     // step 2: write filter expression (both SEMI and INNER join)
     //   1. join keys will be rewritten as IN clause
     //   2. inequality joins will be rewritten as min/max range filter (TODO: not implemented yet)
-    context.setDynamicOperatorResult(block);
     if (block.getNumRows() > 0) {
       attachDynamicFilter(context.getPinotQuery(), node.getJoinKeys(), block);
     } else {
@@ -534,30 +518,5 @@ public class ServerRequestPlanVisitor implements StageNodeVisitor<Void, ServerPl
     } else {
       pinotQuery.setFilterExpression(arrayList.get(0));
     }
-  }
-
-  /**
-   * Compute dynamic operator block received from a chain operators
-   */
-  private static TransferableBlock receiveDataBlock(MultiStageOperator baseOperator,
-      DataSchema dataSchema, long timeoutMs) {
-  long timeoutWatermark = System.nanoTime() + timeoutMs * 1_000_000L;
-    List<Object[]> dataContainer = new ArrayList<>();
-    while (System.nanoTime() < timeoutWatermark) {
-      TransferableBlock transferableBlock = baseOperator.nextBlock();
-      if (TransferableBlockUtils.isEndOfStream(transferableBlock) && transferableBlock.isErrorBlock()) {
-        // TODO: we only received bubble up error from the execution stage tree.
-        // TODO: query dispatch should also send cancel signal to the rest of the execution stage tree.
-        throw new RuntimeException(
-            "Received error query execution result block: " + transferableBlock.getDataBlock().getExceptions());
-      }
-      if (transferableBlock.isNoOpBlock()) {
-        continue;
-      } else if (transferableBlock.isEndOfStreamBlock()) {
-        return new TransferableBlock(dataContainer, dataSchema, BaseDataBlock.Type.ROW);
-      }
-      dataContainer.addAll(transferableBlock.getContainer());
-    }
-    return new TransferableBlock(dataContainer, dataSchema, BaseDataBlock.Type.ROW);
   }
 }

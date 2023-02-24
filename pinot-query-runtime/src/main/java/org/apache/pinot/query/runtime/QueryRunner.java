@@ -22,6 +22,8 @@ import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +47,7 @@ import org.apache.pinot.core.query.scheduler.resources.ResourceManager;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.mailbox.MultiplexingMailboxService;
 import org.apache.pinot.query.planner.StageMetadata;
+import org.apache.pinot.query.planner.stage.MailboxReceiveNode;
 import org.apache.pinot.query.planner.stage.MailboxSendNode;
 import org.apache.pinot.query.planner.stage.StageNode;
 import org.apache.pinot.query.routing.VirtualServer;
@@ -54,9 +57,12 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
 import org.apache.pinot.query.runtime.executor.OpChainSchedulerService;
 import org.apache.pinot.query.runtime.executor.RoundRobinScheduler;
 import org.apache.pinot.query.runtime.operator.LeafStageTransferableBlockOperator;
+import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
 import org.apache.pinot.query.runtime.operator.MailboxSendOperator;
 import org.apache.pinot.query.runtime.operator.OpChain;
+import org.apache.pinot.query.runtime.operator.dynamic.DynamicMailboxReceiveOperator;
 import org.apache.pinot.query.runtime.plan.DistributedStagePlan;
+import org.apache.pinot.query.runtime.plan.NodeFinderVisitor;
 import org.apache.pinot.query.runtime.plan.PhysicalPlanVisitor;
 import org.apache.pinot.query.runtime.plan.PlanRequestContext;
 import org.apache.pinot.query.runtime.plan.ServerRequestPlanVisitor;
@@ -165,12 +171,16 @@ public class QueryRunner {
   public void processQuery(DistributedStagePlan distributedStagePlan, Map<String, String> requestMetadataMap) {
     long requestId = Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_ID));
     if (isLeafStage(distributedStagePlan)) {
+      // async accept dynamic mailbox results.
+      TransferableBlock dynamicMailboxResultBlock = acceptAsyncDynamicMailboxContent(distributedStagePlan,
+          requestMetadataMap);
+
       // TODO: make server query request return via mailbox, this is a hack to gather the non-streaming data table
       // and package it here for return. But we should really use a MailboxSendOperator directly put into the
       // server executor.
       long leafStageStartMillis = System.currentTimeMillis();
-      List<ServerPlanRequestContext> serverQueryRequests =
-          constructServerQueryRequests(distributedStagePlan, requestMetadataMap, _helixPropertyStore, _mailboxService);
+      List<ServerPlanRequestContext> serverQueryRequests = constructServerQueryRequests(distributedStagePlan,
+          requestMetadataMap, _helixPropertyStore, _mailboxService, dynamicMailboxResultBlock);
 
       // send the data table via mailbox in one-off fashion (e.g. no block-level split, one data table/partition key)
       List<InstanceResponseBlock> serverQueryResults = new ArrayList<>(serverQueryRequests.size());
@@ -221,7 +231,7 @@ public class QueryRunner {
 
   private static List<ServerPlanRequestContext> constructServerQueryRequests(DistributedStagePlan distributedStagePlan,
       Map<String, String> requestMetadataMap, ZkHelixPropertyStore<ZNRecord> helixPropertyStore,
-      MailboxService<TransferableBlock> mailboxService) {
+      MailboxService<TransferableBlock> mailboxService, TransferableBlock dynamicMailboxResultBlock) {
     StageMetadata stageMetadata = distributedStagePlan.getMetadataMap().get(distributedStagePlan.getStageId());
     Preconditions.checkState(stageMetadata.getScannedTables().size() == 1,
         "Server request for V2 engine should only have 1 scan table per request.");
@@ -239,22 +249,57 @@ public class QueryRunner {
             TableNameBuilder.forType(TableType.OFFLINE).tableNameWithType(rawTableName));
         Schema schema = ZKMetadataProvider.getTableSchema(helixPropertyStore,
             TableNameBuilder.forType(TableType.OFFLINE).tableNameWithType(rawTableName));
-        requests.add(
-            ServerRequestPlanVisitor.build(mailboxService, distributedStagePlan, requestMetadataMap, tableConfig,
-                schema, stageMetadata.getTimeBoundaryInfo(), TableType.OFFLINE, tableEntry.getValue()));
+        requests.add(ServerRequestPlanVisitor.build(mailboxService, distributedStagePlan, requestMetadataMap,
+            tableConfig, schema, stageMetadata.getTimeBoundaryInfo(), TableType.OFFLINE, tableEntry.getValue(),
+            dynamicMailboxResultBlock));
       } else if (TableType.REALTIME.name().equals(tableType)) {
         TableConfig tableConfig = ZKMetadataProvider.getTableConfig(helixPropertyStore,
             TableNameBuilder.forType(TableType.REALTIME).tableNameWithType(rawTableName));
         Schema schema = ZKMetadataProvider.getTableSchema(helixPropertyStore,
             TableNameBuilder.forType(TableType.REALTIME).tableNameWithType(rawTableName));
-        requests.add(
-            ServerRequestPlanVisitor.build(mailboxService, distributedStagePlan, requestMetadataMap, tableConfig,
-                schema, stageMetadata.getTimeBoundaryInfo(), TableType.REALTIME, tableEntry.getValue()));
+        requests.add(ServerRequestPlanVisitor.build(mailboxService, distributedStagePlan, requestMetadataMap,
+            tableConfig, schema, stageMetadata.getTimeBoundaryInfo(), TableType.REALTIME, tableEntry.getValue(),
+            dynamicMailboxResultBlock));
       } else {
         throw new IllegalArgumentException("Unsupported table type key: " + tableType);
       }
     }
     return requests;
+  }
+
+  private TransferableBlock acceptAsyncDynamicMailboxContent(DistributedStagePlan distributedStagePlan,
+      Map<String, String> requestMetadataMap) {
+    List<StageNode> mailboxReceivers = NodeFinderVisitor.find(distributedStagePlan.getStageRoot(),
+        MailboxReceiveNode.class);
+    // TODO: support multiple mailbox receivers
+    if (mailboxReceivers.size() == 1) {
+      BlockingQueue<TransferableBlock> blockingQueue = new ArrayBlockingQueue<>(1);
+      long requestId = Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_ID));
+      int stageId = distributedStagePlan.getStageId();
+      long timeoutMs = Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_TIMEOUT_MS));
+      VirtualServerAddress serverAddress = new VirtualServerAddress(distributedStagePlan.getServer());
+
+      // Create an OpChain to receive data and add callback to put them in a blockingQueue.
+      MailboxReceiveNode mailboxReceiveNode = (MailboxReceiveNode) mailboxReceivers.get(0);
+      List<VirtualServer> sendingInstances = distributedStagePlan.getMetadataMap()
+          .get(mailboxReceiveNode.getSenderStageId()).getServerInstances();
+      MailboxReceiveOperator mailboxReceiveOperator = new MailboxReceiveOperator(_mailboxService,
+          sendingInstances, mailboxReceiveNode.getExchangeType(),
+          new VirtualServerAddress(distributedStagePlan.getServer()), requestId,
+          mailboxReceiveNode.getSenderStageId(), distributedStagePlan.getStageId(), timeoutMs);
+      DynamicMailboxReceiveOperator receiveOperator = new DynamicMailboxReceiveOperator(mailboxReceiveOperator,
+          mailboxReceiveNode.getDataSchema(), blockingQueue::offer, requestId, stageId, serverAddress);
+      OpChain opChain = new OpChain(receiveOperator, mailboxReceiveOperator.getSendingMailbox(),
+          distributedStagePlan.getServer().getVirtualId(), requestId, stageId);
+      _scheduler.register(opChain);
+
+      try {
+        return blockingQueue.poll(timeoutMs, TimeUnit.MILLISECONDS);
+      } catch (Exception e) {
+        LOGGER.error("Error trying to receive transferable block!", e);
+      }
+    }
+    return null;
   }
 
   private InstanceResponseBlock processServerQuery(ServerPlanRequestContext requestContext,
