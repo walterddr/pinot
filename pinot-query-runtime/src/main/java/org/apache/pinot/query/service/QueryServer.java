@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
+import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.proto.PinotQueryWorkerGrpc;
 import org.apache.pinot.common.proto.Worker;
 import org.apache.pinot.core.transport.grpc.GrpcQueryServer;
@@ -98,11 +99,17 @@ public class QueryServer extends PinotQueryWorkerGrpc.PinotQueryWorkerImplBase {
       return;
     }
 
-    _queryRunner.processQuery(distributedStagePlan, requestMetadataMap);
-
-    responseObserver.onNext(Worker.QueryResponse.newBuilder()
-        .putMetadata(QueryConfig.KEY_OF_SERVER_RESPONSE_STATUS_OK, "").build());
-    responseObserver.onCompleted();
+    try {
+      _queryRunner.processQuery(distributedStagePlan, requestMetadataMap);
+      responseObserver.onNext(
+          Worker.QueryResponse.newBuilder().putMetadata(QueryConfig.KEY_OF_SERVER_RESPONSE_STATUS_OK, "").build());
+      responseObserver.onCompleted();
+    } catch (Throwable t) {
+      responseObserver.onNext(
+          Worker.QueryResponse.newBuilder().putMetadata(QueryConfig.KEY_OF_SERVER_RESPONSE_STATUS_ERROR, "")
+              .putMetadata("Exception", QueryException.getTruncatedStackTrace(t)).build());
+      responseObserver.onCompleted();
+    }
   }
 
   @Override
