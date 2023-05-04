@@ -98,9 +98,7 @@ public class QueryServer extends PinotQueryWorkerGrpc.PinotQueryWorkerImplBase {
       return;
     }
 
-    // TODO: break this into parsing and execution, so that responseObserver can return upon compilation complete.
-    // compilation complete indicates dispatch successful.
-    _executorService.submit(() -> _queryRunner.processQuery(distributedStagePlan, requestMetadataMap));
+    _queryRunner.processQuery(distributedStagePlan, requestMetadataMap);
 
     responseObserver.onNext(Worker.QueryResponse.newBuilder()
         .putMetadata(QueryConfig.KEY_OF_SERVER_RESPONSE_STATUS_OK, "").build());

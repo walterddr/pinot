@@ -20,7 +20,10 @@ package org.apache.pinot.query.runtime.operator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import org.apache.pinot.common.datablock.DataBlock;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.query.routing.VirtualServerAddress;
@@ -78,5 +81,11 @@ public class OperatorTestUtil {
       VirtualServerAddress virtualServerAddress) {
     return new OpChainExecutionContext(null, requestId, stageId, virtualServerAddress, Long.MAX_VALUE, Long.MAX_VALUE,
         new ArrayList<>(), true);
+  }
+
+  public static <T> BlockingQueue<T> toQueue(Collection<T> collection) {
+    BlockingQueue<T> queue = new ArrayBlockingQueue<>(collection.size());
+    queue.addAll(collection);
+    return queue;
   }
 }

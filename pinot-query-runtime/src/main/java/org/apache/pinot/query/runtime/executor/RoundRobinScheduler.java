@@ -132,6 +132,7 @@ public class RoundRobinScheduler implements OpChainScheduler {
         try {
           if (_available.containsKey(opChainId)) {
             _available.remove(opChainId);
+            LOGGER.warn("offer opChain: " + opChainId + " back to ready queue due to inactivity timeout.");
             _ready.offer(_aliveChains.get(opChainId));
           }
         } finally {

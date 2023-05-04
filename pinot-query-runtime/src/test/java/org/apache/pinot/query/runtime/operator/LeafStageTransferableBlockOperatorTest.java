@@ -75,7 +75,8 @@ public class LeafStageTransferableBlockOperatorTest {
     List<InstanceResponseBlock> resultsBlockList = Collections.singletonList(new InstanceResponseBlock(
         new SelectionResultsBlock(schema, Arrays.asList(new Object[]{"foo", 1}, new Object[]{"", 2})), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, schema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), schema);
 
     // When:
     TransferableBlock resultBlock = operator.nextBlock();
@@ -101,7 +102,8 @@ public class LeafStageTransferableBlockOperatorTest {
         new SelectionResultsBlock(resultSchema,
             Arrays.asList(new Object[]{1, 1660000000000L}, new Object[]{0, 1600000000000L})), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, desiredSchema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), desiredSchema);
 
     // When:
     TransferableBlock resultBlock = operator.nextBlock();
@@ -123,7 +125,8 @@ public class LeafStageTransferableBlockOperatorTest {
         new SelectionResultsBlock(schema,
             Arrays.asList(new Object[]{1, 1660000000000L}, new Object[]{0, 1600000000000L})), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, schema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), schema);
 
     // When:
     TransferableBlock resultBlock = operator.nextBlock();
@@ -148,7 +151,8 @@ public class LeafStageTransferableBlockOperatorTest {
             queryContext),
         new InstanceResponseBlock(new SelectionResultsBlock(schema, Collections.emptyList()), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, schema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), schema);
 
     // When:
     TransferableBlock resultBlock1 = operator.nextBlock();
@@ -178,11 +182,17 @@ public class LeafStageTransferableBlockOperatorTest {
         errorBlock,
         new InstanceResponseBlock(new SelectionResultsBlock(schema, Collections.emptyList()), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, schema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), schema);
 
     // When:
     TransferableBlock resultBlock = operator.nextBlock();
+    // Then:
+    Assert.assertEquals(resultBlock.getContainer().get(0), new Object[]{"foo", 1});
+    Assert.assertEquals(resultBlock.getContainer().get(1), new Object[]{"", 2});
 
+    // When:
+    resultBlock = operator.nextBlock();
     // Then:
     Assert.assertTrue(resultBlock.isErrorBlock());
   }
@@ -199,7 +209,8 @@ public class LeafStageTransferableBlockOperatorTest {
         new DistinctResultsBlock(mock(DistinctAggregationFunction.class), new DistinctTable(schema,
             Arrays.asList(new Record(new Object[]{1, "foo"}), new Record(new Object[]{2, "bar"})))), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, schema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), schema);
 
     // When:
     TransferableBlock resultBlock = operator.nextBlock();
@@ -220,7 +231,8 @@ public class LeafStageTransferableBlockOperatorTest {
         new DistinctResultsBlock(mock(DistinctAggregationFunction.class), new DistinctTable(schema,
             Arrays.asList(new Record(new Object[]{"foo", 1}), new Record(new Object[]{"bar", 2})))), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, schema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), schema);
 
     // When:
     TransferableBlock resultBlock = operator.nextBlock();
@@ -244,7 +256,8 @@ public class LeafStageTransferableBlockOperatorTest {
     List<InstanceResponseBlock> resultsBlockList = Collections.singletonList(
         new InstanceResponseBlock(new GroupByResultsBlock(schema, Collections.emptyList()), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, schema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), schema);
 
     // When:
     TransferableBlock resultBlock = operator.nextBlock();
@@ -267,7 +280,8 @@ public class LeafStageTransferableBlockOperatorTest {
     List<InstanceResponseBlock> resultsBlockList = Collections.singletonList(
         new InstanceResponseBlock(new GroupByResultsBlock(schema, Collections.emptyList()), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, schema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), schema);
 
     // When:
     TransferableBlock resultBlock = operator.nextBlock();
@@ -286,7 +300,8 @@ public class LeafStageTransferableBlockOperatorTest {
     List<InstanceResponseBlock> resultsBlockList = Collections.singletonList(new InstanceResponseBlock(
         new AggregationResultsBlock(queryContext.getAggregationFunctions(), Collections.emptyList()), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList, schema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), schema);
 
     // When:
     TransferableBlock resultBlock = operator.nextBlock();
@@ -305,10 +320,11 @@ public class LeafStageTransferableBlockOperatorTest {
         new DataSchema.ColumnDataType[]{DataSchema.ColumnDataType.STRING, DataSchema.ColumnDataType.INT});
 
     // When:
-    List<InstanceResponseBlock> responseBlockList = Collections.singletonList(
+    List<InstanceResponseBlock> resultsBlockList = Collections.singletonList(
         new InstanceResponseBlock(new SelectionResultsBlock(resultSchema, Collections.emptyList()), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), responseBlockList, desiredSchema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), desiredSchema);
     TransferableBlock resultBlock = operator.nextBlock();
 
     // Then:
@@ -327,11 +343,12 @@ public class LeafStageTransferableBlockOperatorTest {
         new DataSchema.ColumnDataType[]{DataSchema.ColumnDataType.STRING, DataSchema.ColumnDataType.INT});
 
     // When:
-    List<InstanceResponseBlock> responseBlockList = Collections.singletonList(new InstanceResponseBlock(
+    List<InstanceResponseBlock> resultsBlockList = Collections.singletonList(new InstanceResponseBlock(
         new DistinctResultsBlock(mock(DistinctAggregationFunction.class),
             new DistinctTable(resultSchema, Collections.emptyList())), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), responseBlockList, desiredSchema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), desiredSchema);
     TransferableBlock resultBlock = operator.nextBlock();
 
     // Then:
@@ -350,10 +367,11 @@ public class LeafStageTransferableBlockOperatorTest {
         new DataSchema.ColumnDataType[]{DataSchema.ColumnDataType.STRING, DataSchema.ColumnDataType.INT});
 
     // When:
-    List<InstanceResponseBlock> responseBlockList = Collections.singletonList(
+    List<InstanceResponseBlock> resultsBlockList = Collections.singletonList(
         new InstanceResponseBlock(new GroupByResultsBlock(resultSchema, Collections.emptyList()), queryContext));
     LeafStageTransferableBlockOperator operator =
-        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), responseBlockList, desiredSchema);
+        new LeafStageTransferableBlockOperator(OperatorTestUtil.getDefaultContext(), resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), desiredSchema);
     TransferableBlock resultBlock = operator.nextBlock();
 
     // Then:

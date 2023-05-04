@@ -274,7 +274,8 @@ public class OpChainTest {
     List<InstanceResponseBlock> resultsBlockList = Collections.singletonList(new InstanceResponseBlock(
         new SelectionResultsBlock(upStreamSchema, Arrays.asList(new Object[]{1}, new Object[]{2})), queryContext));
     LeafStageTransferableBlockOperator leafOp =
-        new LeafStageTransferableBlockOperator(context, resultsBlockList, upStreamSchema);
+        new LeafStageTransferableBlockOperator(context, resultsBlockList.size(),
+            OperatorTestUtil.toQueue(resultsBlockList), upStreamSchema);
 
     //Transform operator
     RexExpression.InputRef ref0 = new RexExpression.InputRef(0);
