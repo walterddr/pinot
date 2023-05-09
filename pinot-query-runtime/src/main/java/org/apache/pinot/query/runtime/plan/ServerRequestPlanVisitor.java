@@ -51,6 +51,7 @@ import org.apache.pinot.query.planner.plannode.SortNode;
 import org.apache.pinot.query.planner.plannode.TableScanNode;
 import org.apache.pinot.query.planner.plannode.ValueNode;
 import org.apache.pinot.query.planner.plannode.WindowNode;
+import org.apache.pinot.query.runtime.executor.SchedulerService;
 import org.apache.pinot.query.runtime.plan.server.ServerPlanRequestContext;
 import org.apache.pinot.query.service.QueryConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
@@ -88,9 +89,9 @@ public class ServerRequestPlanVisitor implements PlanNodeVisitor<Void, ServerPla
 
   private static final ServerRequestPlanVisitor INSTANCE = new ServerRequestPlanVisitor();
 
-  public static ServerPlanRequestContext build(MailboxService mailboxService, DistributedStagePlan stagePlan,
-      Map<String, String> requestMetadataMap, TableConfig tableConfig, Schema schema, TimeBoundaryInfo timeBoundaryInfo,
-      TableType tableType, List<String> segmentList, long deadlineMs) {
+  public static ServerPlanRequestContext build(MailboxService mailboxService, SchedulerService schedulerService,
+      DistributedStagePlan stagePlan, Map<String, String> requestMetadataMap, TableConfig tableConfig, Schema schema,
+      TimeBoundaryInfo timeBoundaryInfo, TableType tableType, List<String> segmentList, long deadlineMs) {
     // Before-visit: construct the ServerPlanRequestContext baseline
     // Making a unique requestId for leaf stages otherwise it causes problem on stats/metrics/tracing.
     long requestId = (Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_ID)) << 16) + (
@@ -107,8 +108,8 @@ public class ServerRequestPlanVisitor implements PlanNodeVisitor<Void, ServerPla
     LOGGER.debug("QueryID" + requestId + " leafNodeLimit:" + leafNodeLimit);
     pinotQuery.setExplain(false);
     ServerPlanRequestContext context =
-        new ServerPlanRequestContext(mailboxService, requestId, stagePlan.getStageId(), timeoutMs, deadlineMs,
-            stagePlan.getServer(), stagePlan.getStageMetadata(), pinotQuery, tableType, timeBoundaryInfo,
+        new ServerPlanRequestContext(mailboxService, schedulerService, requestId, stagePlan.getStageId(), timeoutMs,
+            deadlineMs, stagePlan.getServer(), stagePlan.getStageMetadata(), pinotQuery, tableType, timeBoundaryInfo,
             traceEnabled);
 
     // visit the plan and create query physical plan.

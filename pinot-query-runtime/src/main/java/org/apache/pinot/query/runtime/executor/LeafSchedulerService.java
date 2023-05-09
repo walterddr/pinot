@@ -19,9 +19,12 @@
 package org.apache.pinot.query.runtime.executor;
 
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.pinot.core.util.trace.TraceRunnable;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
@@ -31,17 +34,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class LeafSchedulerService {
+public class LeafSchedulerService implements SchedulerService {
   private static final Logger LOGGER = LoggerFactory.getLogger(LeafSchedulerService.class);
 
   private final ExecutorService _executorService;
   private final ConcurrentHashMap<OpChainId, Future<?>> _submittedOpChainMap;
+  private final ConcurrentHashMap<OpChainId, OpChainStatus> _opChainStatusMap;
 
   public LeafSchedulerService(ExecutorService executorService) {
     _executorService = executorService;
     _submittedOpChainMap = new ConcurrentHashMap<>();
+    _opChainStatusMap = new ConcurrentHashMap<>();
   }
 
+  @Override
   public void register(OpChain operatorChain) {
     Future<?> scheduledFuture = _executorService.submit(new TraceRunnable() {
       @Override
@@ -79,6 +85,7 @@ public class LeafSchedulerService {
     _submittedOpChainMap.put(operatorChain.getId(), scheduledFuture);
   }
 
+  @Override
   public void cancel(long requestId) {
     // simple cancellation. for leaf stage this cannot be a dangling opchain b/c they will eventually be cleared up
     // via query timeout.
@@ -92,11 +99,43 @@ public class LeafSchedulerService {
     }
   }
 
+  @Override
+  public void awaitDataAvailable(OpChainId opChainId, long timeoutMs) {
+    OpChainStatus status = _opChainStatusMap.computeIfAbsent(opChainId, k -> new OpChainStatus());
+    status.awaitStatus(timeoutMs);
+  }
+
+  @Override
+  public void setDataAvailable(OpChainId opChainId) {
+    OpChainStatus status = _opChainStatusMap.computeIfAbsent(opChainId, k -> new OpChainStatus());
+    status.setDataAvailable();
+  }
+
   private void closeOpChain(OpChain opChain) {
     opChain.close();
   }
 
   private void cancelOpChain(OpChain opChain, Throwable t) {
     opChain.cancel(t);
+  }
+
+  private static class OpChainStatus {
+    private final BlockingQueue<Boolean> _queue = new ArrayBlockingQueue<>(1);
+
+    OpChainStatus() {
+    }
+
+    public void setDataAvailable() {
+      _queue.offer(true);
+    }
+
+    public boolean awaitStatus(long timeoutMs) {
+      try {
+        Boolean result = _queue.poll(timeoutMs, TimeUnit.MILLISECONDS);
+        return result != null;
+      } catch (InterruptedException e) {
+        return false;
+      }
+    }
   }
 }

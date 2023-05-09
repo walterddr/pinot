@@ -24,6 +24,7 @@ import org.apache.pinot.core.routing.TimeBoundaryInfo;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.routing.PlanFragmentMetadata;
 import org.apache.pinot.query.routing.VirtualServerAddress;
+import org.apache.pinot.query.runtime.executor.SchedulerService;
 import org.apache.pinot.query.runtime.plan.PlanRequestContext;
 import org.apache.pinot.spi.config.table.TableType;
 
@@ -39,10 +40,12 @@ public class ServerPlanRequestContext extends PlanRequestContext {
   protected PinotQuery _pinotQuery;
   protected InstanceRequest _instanceRequest;
 
-  public ServerPlanRequestContext(MailboxService mailboxService, long requestId, int stageId, long timeoutMs,
-      long deadlineMs, VirtualServerAddress server, PlanFragmentMetadata planFragmentMetadata, PinotQuery pinotQuery,
-      TableType tableType, TimeBoundaryInfo timeBoundaryInfo, boolean traceEnabled) {
-    super(mailboxService, requestId, stageId, timeoutMs, deadlineMs, server, planFragmentMetadata, traceEnabled);
+  public ServerPlanRequestContext(MailboxService mailboxService, SchedulerService schedulerService, long requestId,
+      int stageId, long timeoutMs, long deadlineMs, VirtualServerAddress server,
+      PlanFragmentMetadata planFragmentMetadata, PinotQuery pinotQuery, TableType tableType,
+      TimeBoundaryInfo timeBoundaryInfo, boolean traceEnabled) {
+    super(mailboxService, schedulerService, requestId, stageId, timeoutMs, deadlineMs, server, planFragmentMetadata,
+        traceEnabled);
     _pinotQuery = pinotQuery;
     _tableType = tableType;
     _timeBoundaryInfo = timeBoundaryInfo;

@@ -126,23 +126,21 @@ public class MailboxSendOperator extends MultiStageOperator {
   @Override
   protected TransferableBlock getNextBlock() {
     TransferableBlock transferableBlock;
+    LOGGER.debug("==[SEND]== Enter getNextBlock from: " + _context.getId());
     try {
       transferableBlock = _sourceOperator.nextBlock();
-      while (!transferableBlock.isNoOpBlock()) {
-        if (transferableBlock.isEndOfStreamBlock()) {
-          if (transferableBlock.isSuccessfulEndOfStreamBlock()) {
-            //Stats need to be populated here because the block is being sent to the mailbox
-            // and the receiving opChain will not be able to access the stats from the previous opChain
-            TransferableBlock eosBlockWithStats = TransferableBlockUtils.getEndOfStreamTransferableBlock(
-                OperatorUtils.getMetadataFromOperatorStats(_opChainStats.getOperatorStatsMap()));
-            _exchange.send(eosBlockWithStats);
-          } else {
-            _exchange.send(transferableBlock);
-          }
-          return transferableBlock;
-        }
+      while (!transferableBlock.isEndOfStreamBlock()) {
         _exchange.send(transferableBlock);
         transferableBlock = _sourceOperator.nextBlock();
+      }
+      if (transferableBlock.isSuccessfulEndOfStreamBlock()) {
+        //Stats need to be populated here because the block is being sent to the mailbox
+        // and the receiving opChain will not be able to access the stats from the previous opChain
+        TransferableBlock eosBlockWithStats = TransferableBlockUtils.getEndOfStreamTransferableBlock(
+            OperatorUtils.getMetadataFromOperatorStats(_opChainStats.getOperatorStatsMap()));
+        _exchange.send(eosBlockWithStats);
+      } else {
+        _exchange.send(transferableBlock);
       }
     } catch (Exception e) {
       transferableBlock = TransferableBlockUtils.getErrorTransferableBlock(e);

@@ -173,8 +173,7 @@ public class ResourceBasedQueriesTest extends QueryRunnerTestBase {
     reducerConfig.put(QueryConfig.KEY_OF_QUERY_RUNNER_PORT, _reducerGrpcPort);
     reducerConfig.put(QueryConfig.KEY_OF_QUERY_RUNNER_HOSTNAME, _reducerHostname);
     _mailboxService = new MailboxService(QueryConfig.DEFAULT_QUERY_RUNNER_HOSTNAME, _reducerGrpcPort,
-        new PinotConfiguration(reducerConfig), ignored -> {
-    });
+        new PinotConfiguration(reducerConfig), _schedulerService::setDataAvailable);
     _mailboxService.start();
 
     Map<String, List<String>> tableToSegmentMap1 = factory1.buildTableSegmentNameMap();

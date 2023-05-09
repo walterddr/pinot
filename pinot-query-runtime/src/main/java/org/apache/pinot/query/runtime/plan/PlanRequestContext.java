@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.routing.PlanFragmentMetadata;
 import org.apache.pinot.query.routing.VirtualServerAddress;
+import org.apache.pinot.query.runtime.executor.SchedulerService;
 
 
 public class PlanRequestContext {
@@ -37,10 +38,13 @@ public class PlanRequestContext {
   protected final List<String> _receivingMailboxIds = new ArrayList<>();
   private final OpChainExecutionContext _opChainExecutionContext;
   private final boolean _traceEnabled;
+  private final SchedulerService _schedulerService;
 
-  public PlanRequestContext(MailboxService mailboxService, long requestId, int stageId, long timeoutMs, long deadlineMs,
-      VirtualServerAddress server, PlanFragmentMetadata planFragmentMetadata, boolean traceEnabled) {
+  public PlanRequestContext(MailboxService mailboxService, SchedulerService schedulerService, long requestId,
+      int stageId, long timeoutMs, long deadlineMs, VirtualServerAddress server,
+      PlanFragmentMetadata planFragmentMetadata, boolean traceEnabled) {
     _mailboxService = mailboxService;
+    _schedulerService = schedulerService;
     _requestId = requestId;
     _stageId = stageId;
     _timeoutMs = timeoutMs;
@@ -93,5 +97,9 @@ public class PlanRequestContext {
 
   public boolean isTraceEnabled() {
     return _traceEnabled;
+  }
+
+  public SchedulerService getSchedulerService() {
+    return _schedulerService;
   }
 }

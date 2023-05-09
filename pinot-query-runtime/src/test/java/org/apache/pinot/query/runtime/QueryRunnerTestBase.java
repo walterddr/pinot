@@ -51,6 +51,7 @@ import org.apache.pinot.query.planner.QueryPlan;
 import org.apache.pinot.query.planner.plannode.MailboxReceiveNode;
 import org.apache.pinot.query.routing.QueryServerInstance;
 import org.apache.pinot.query.routing.VirtualServerAddress;
+import org.apache.pinot.query.runtime.executor.SchedulerService;
 import org.apache.pinot.query.runtime.plan.DistributedStagePlan;
 import org.apache.pinot.query.service.QueryConfig;
 import org.apache.pinot.query.service.dispatch.QueryDispatcher;
@@ -78,6 +79,7 @@ public abstract class QueryRunnerTestBase extends QueryTestSet {
   protected int _reducerGrpcPort;
   protected Map<QueryServerInstance, QueryServerEnclosure> _servers = new HashMap<>();
   protected MailboxService _mailboxService;
+  protected SchedulerService _schedulerService = new QueryDispatcher.NoOpSchedulerService();
 
   static {
     SEGMENT_BREAKER_ROW.putValue(SEGMENT_BREAKER_KEY, SEGMENT_BREAKER_STR);
@@ -120,7 +122,7 @@ public abstract class QueryRunnerTestBase extends QueryTestSet {
     Preconditions.checkState(reducerStageId != -1);
     ResultTable resultTable = QueryDispatcher.runReducer(requestId, queryPlan, reducerStageId,
         Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_TIMEOUT_MS)), _mailboxService,
-        executionStatsAggregatorMap, true);
+        _schedulerService, executionStatsAggregatorMap, true);
     return resultTable.getRows();
   }
 

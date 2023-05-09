@@ -64,6 +64,7 @@ public class QueryRunnerTest extends QueryRunnerTestBase {
       new Object[]{"charlie", "bar", 1},
   };
   public static final Schema.SchemaBuilder SCHEMA_BUILDER;
+
   static {
     SCHEMA_BUILDER = new Schema.SchemaBuilder()
         .addSingleValueDimension("col1", FieldSpec.DataType.STRING, "")
@@ -127,8 +128,7 @@ public class QueryRunnerTest extends QueryRunnerTestBase {
     reducerConfig.put(QueryConfig.KEY_OF_QUERY_RUNNER_PORT, _reducerGrpcPort);
     reducerConfig.put(QueryConfig.KEY_OF_QUERY_RUNNER_HOSTNAME, _reducerHostname);
     _mailboxService = new MailboxService(QueryConfig.DEFAULT_QUERY_RUNNER_HOSTNAME, _reducerGrpcPort,
-        new PinotConfiguration(reducerConfig), ignored -> {
-    });
+        new PinotConfiguration(reducerConfig), _schedulerService::setDataAvailable);
     _mailboxService.start();
 
     _queryEnvironment = QueryEnvironmentTestBase.getQueryEnvironment(_reducerGrpcPort, server1.getPort(),
@@ -202,8 +202,8 @@ public class QueryRunnerTest extends QueryRunnerTestBase {
 
     try {
       QueryDispatcher.runReducer(requestId, queryPlan, reducerStageId,
-          Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_TIMEOUT_MS)), _mailboxService, null,
-          false);
+          Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_TIMEOUT_MS)), _mailboxService,
+          _schedulerService, null, false);
     } catch (RuntimeException rte) {
       Assert.assertTrue(rte.getMessage().contains("Received error query execution result block"));
       Assert.assertTrue(rte.getMessage().contains(exceptionMsg), "Exception should contain: " + exceptionMsg
@@ -215,7 +215,7 @@ public class QueryRunnerTest extends QueryRunnerTestBase {
   private Object[][] provideTestSqlAndRowCount() {
     return new Object[][] {
         // using join clause
-        new Object[]{"SELECT * FROM a JOIN b USING (col1)", 15},
+        new Object[]{"set timeoutMs=1200000; SELECT * FROM a JOIN b USING (col1)", 15},
 
         // cannot compare with H2 w/o an ORDER BY because ordering is indeterminate
         new Object[]{"SELECT * FROM a LIMIT 2", 2},

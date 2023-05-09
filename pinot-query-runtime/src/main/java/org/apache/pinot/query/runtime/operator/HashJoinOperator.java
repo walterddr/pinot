@@ -145,8 +145,6 @@ public class HashJoinOperator extends MultiStageOperator {
       }
       if (_upstreamErrorBlock != null) {
         return _upstreamErrorBlock;
-      } else if (!_isHashTableBuilt) {
-        return TransferableBlockUtils.getNoOpTransferableBlock();
       }
       TransferableBlock leftBlock = _leftTableOperator.nextBlock();
       // JOIN each left block with the right block.
@@ -158,15 +156,7 @@ public class HashJoinOperator extends MultiStageOperator {
 
   private void buildBroadcastHashTable() {
     TransferableBlock rightBlock = _rightTableOperator.nextBlock();
-    while (!rightBlock.isNoOpBlock()) {
-      if (rightBlock.isErrorBlock()) {
-        _upstreamErrorBlock = rightBlock;
-        return;
-      }
-      if (TransferableBlockUtils.isEndOfStream(rightBlock)) {
-        _isHashTableBuilt = true;
-        return;
-      }
+    while (!TransferableBlockUtils.isEndOfStream(rightBlock)) {
       List<Object[]> container = rightBlock.getContainer();
       // put all the rows into corresponding hash collections keyed by the key selector function.
       for (Object[] row : container) {
@@ -176,6 +166,11 @@ public class HashJoinOperator extends MultiStageOperator {
       }
       rightBlock = _rightTableOperator.nextBlock();
     }
+    if (rightBlock.isErrorBlock()) {
+      _upstreamErrorBlock = rightBlock;
+    } else {
+      _isHashTableBuilt = true;
+    }
   }
 
   private TransferableBlock buildJoinedDataBlock(TransferableBlock leftBlock)
@@ -184,14 +179,10 @@ public class HashJoinOperator extends MultiStageOperator {
       _upstreamErrorBlock = leftBlock;
       return _upstreamErrorBlock;
     }
-    if (leftBlock.isNoOpBlock() || (leftBlock.isSuccessfulEndOfStreamBlock() && !needUnmatchedRightRows())) {
-      if (!leftBlock.getResultMetadata().isEmpty()) {
-      }
-
+    if (leftBlock.isSuccessfulEndOfStreamBlock() && !needUnmatchedRightRows()) {
       if (leftBlock.isSuccessfulEndOfStreamBlock()) {
         return TransferableBlockUtils.getEndOfStreamTransferableBlock();
       }
-
       return leftBlock;
     }
     // TODO: Moved to a different function.

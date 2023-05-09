@@ -54,7 +54,10 @@ import org.apache.pinot.query.routing.QueryServerInstance;
 import org.apache.pinot.query.routing.VirtualServerAddress;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
 import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
+import org.apache.pinot.query.runtime.executor.SchedulerService;
 import org.apache.pinot.query.runtime.operator.MailboxReceiveOperator;
+import org.apache.pinot.query.runtime.operator.OpChain;
+import org.apache.pinot.query.runtime.operator.OpChainId;
 import org.apache.pinot.query.runtime.operator.OpChainStats;
 import org.apache.pinot.query.runtime.operator.OperatorStats;
 import org.apache.pinot.query.runtime.operator.utils.OperatorUtils;
@@ -78,10 +81,12 @@ public class QueryDispatcher {
 
   private final Map<String, DispatchClient> _dispatchClientMap = new ConcurrentHashMap<>();
   private final ExecutorService _executorService;
+  private final SchedulerService _schedulerService;
 
   public QueryDispatcher() {
     _executorService = Executors.newFixedThreadPool(2 * Runtime.getRuntime().availableProcessors(),
         new TracedThreadFactory(Thread.NORM_PRIORITY, false, PINOT_BROKER_QUERY_DISPATCHER_FORMAT));
+    _schedulerService = new NoOpSchedulerService();
   }
 
   public ResultTable submitAndReduce(long requestId, QueryPlan queryPlan, MailboxService mailboxService, long timeoutMs,
@@ -92,8 +97,8 @@ public class QueryDispatcher {
       // submit all the distributed stages.
       int reduceStageId = submit(requestId, queryPlan, timeoutMs, queryOptions);
       // run reduce stage and return result.
-      return runReducer(requestId, queryPlan, reduceStageId, timeoutMs, mailboxService, executionStatsAggregator,
-          traceEnabled);
+      return runReducer(requestId, queryPlan, reduceStageId, timeoutMs, mailboxService, _schedulerService,
+          executionStatsAggregator, traceEnabled);
     } catch (Exception e) {
       cancel(requestId, queryPlan);
       throw new RuntimeException("Error executing query: " + ExplainPlanPlanVisitor.explain(queryPlan), e);
@@ -185,11 +190,12 @@ public class QueryDispatcher {
 
   @VisibleForTesting
   public static ResultTable runReducer(long requestId, QueryPlan queryPlan, int reduceStageId, long timeoutMs,
-      MailboxService mailboxService, Map<Integer, ExecutionStatsAggregator> statsAggregatorMap, boolean traceEnabled) {
+      MailboxService mailboxService, SchedulerService schedulerService,
+      Map<Integer, ExecutionStatsAggregator> statsAggregatorMap, boolean traceEnabled) {
     MailboxReceiveNode reduceNode = (MailboxReceiveNode) queryPlan.getQueryStageMap().get(reduceStageId);
     VirtualServerAddress server = new VirtualServerAddress(mailboxService.getHostname(), mailboxService.getPort(), 0);
     OpChainExecutionContext context =
-        new OpChainExecutionContext(mailboxService, requestId, reduceStageId, server, timeoutMs,
+        new OpChainExecutionContext(mailboxService, schedulerService, requestId, reduceStageId, server, timeoutMs,
             System.currentTimeMillis() + timeoutMs, queryPlan.getStageMetadata(reduceStageId), traceEnabled);
     MailboxReceiveOperator mailboxReceiveOperator = createReduceStageOperator(context, reduceNode.getSenderStageId());
     List<DataBlock> resultDataBlocks =
@@ -219,9 +225,7 @@ public class QueryDispatcher {
         throw new RuntimeException(
             "Received error query execution result block: " + transferableBlock.getDataBlock().getExceptions());
       }
-      if (transferableBlock.isNoOpBlock()) {
-        continue;
-      } else if (transferableBlock.isEndOfStreamBlock()) {
+      if (transferableBlock.isEndOfStreamBlock()) {
         if (executionStatsAggregatorMap != null) {
           for (Map.Entry<String, OperatorStats> entry : stats.getOperatorStatsMap().entrySet()) {
             LOGGER.info("Broker Query Execution Stats - OperatorId: {}, OperatorStats: {}", entry.getKey(),
@@ -310,5 +314,27 @@ public class QueryDispatcher {
   private DispatchClient getOrCreateDispatchClient(String host, int port) {
     String key = String.format("%s_%d", host, port);
     return _dispatchClientMap.computeIfAbsent(key, k -> new DispatchClient(host, port));
+  }
+
+  public static class NoOpSchedulerService implements SchedulerService {
+    @Override
+    public void register(OpChain operatorChain) {
+      // no-op
+    }
+
+    @Override
+    public void cancel(long requestId) {
+      // no-op
+    }
+
+    @Override
+    public void awaitDataAvailable(OpChainId opChainId, long timeoutMs) {
+      // no-op
+    }
+
+    @Override
+    public void setDataAvailable(OpChainId opChainId) {
+      // no-op
+    }
   }
 }

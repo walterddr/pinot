@@ -165,13 +165,6 @@ public class TransferableBlock implements Block {
   }
 
   /**
-   * @return whether this block represents a NOOP block
-   */
-  public boolean isNoOpBlock() {
-    return isType(MetadataBlock.MetadataBlockType.NOOP);
-  }
-
-  /**
    * Return whether a transferable block contains exception.
    *
    * @return true if contains exception.

@@ -105,7 +105,7 @@ public class SortedMailboxReceiveOperator extends BaseMailboxReceiveOperator {
         }
         _rows.addAll(block.getContainer());
       } else {
-        return TransferableBlockUtils.getNoOpTransferableBlock();
+        _context.yield();
       }
     }
 

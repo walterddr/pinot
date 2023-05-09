@@ -21,6 +21,7 @@ package org.apache.pinot.query.runtime.plan;
 import org.apache.pinot.query.mailbox.MailboxService;
 import org.apache.pinot.query.routing.PlanFragmentMetadata;
 import org.apache.pinot.query.routing.VirtualServerAddress;
+import org.apache.pinot.query.runtime.executor.SchedulerService;
 import org.apache.pinot.query.runtime.operator.OpChainId;
 import org.apache.pinot.query.runtime.operator.OpChainStats;
 
@@ -41,10 +42,11 @@ public class OpChainExecutionContext {
   private final OpChainId _id;
   private final OpChainStats _stats;
   private final boolean _traceEnabled;
+  private final SchedulerService _schedulerService;
 
-  public OpChainExecutionContext(MailboxService mailboxService, long requestId, int stageId,
-      VirtualServerAddress server, long timeoutMs, long deadlineMs, PlanFragmentMetadata planFragmentMetadata,
-      boolean traceEnabled) {
+  public OpChainExecutionContext(MailboxService mailboxService, SchedulerService schedulerService, long requestId,
+      int stageId, VirtualServerAddress server, long timeoutMs, long deadlineMs,
+      PlanFragmentMetadata planFragmentMetadata, boolean traceEnabled) {
     _mailboxService = mailboxService;
     _requestId = requestId;
     _stageId = stageId;
@@ -55,12 +57,14 @@ public class OpChainExecutionContext {
     _id = new OpChainId(requestId, server.workerId(), stageId);
     _stats = new OpChainStats(_id.toString());
     _traceEnabled = traceEnabled;
+    _schedulerService = schedulerService;
   }
 
   public OpChainExecutionContext(PlanRequestContext planRequestContext) {
-    this(planRequestContext.getMailboxService(), planRequestContext.getRequestId(), planRequestContext.getStageId(),
-        planRequestContext.getServer(), planRequestContext.getTimeoutMs(), planRequestContext.getDeadlineMs(),
-        planRequestContext.getStageMetadata(), planRequestContext.isTraceEnabled());
+    this(planRequestContext.getMailboxService(), planRequestContext.getSchedulerService(),
+        planRequestContext.getRequestId(), planRequestContext.getStageId(), planRequestContext.getServer(),
+        planRequestContext.getTimeoutMs(), planRequestContext.getDeadlineMs(), planRequestContext.getStageMetadata(),
+        planRequestContext.isTraceEnabled());
   }
 
   public MailboxService getMailboxService() {
@@ -101,5 +105,9 @@ public class OpChainExecutionContext {
 
   public boolean isTraceEnabled() {
     return _traceEnabled;
+  }
+
+  public void yield() {
+    _schedulerService.awaitDataAvailable(_id, _deadlineMs - System.currentTimeMillis());
   }
 }

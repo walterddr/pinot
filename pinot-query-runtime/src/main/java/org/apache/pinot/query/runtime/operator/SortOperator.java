@@ -116,10 +116,7 @@ public class SortOperator extends MultiStageOperator {
   private TransferableBlock produceSortedBlock() {
     if (_upstreamErrorBlock != null) {
       return _upstreamErrorBlock;
-    } else if (!_readyToConstruct) {
-      return TransferableBlockUtils.getNoOpTransferableBlock();
     }
-
     if (!_isSortedBlockConstructed) {
       _isSortedBlockConstructed = true;
       if (_priorityQueue == null) {
@@ -149,16 +146,7 @@ public class SortOperator extends MultiStageOperator {
   private void consumeInputBlocks() {
     if (!_isSortedBlockConstructed) {
       TransferableBlock block = _upstreamOperator.nextBlock();
-      while (!block.isNoOpBlock()) {
-        // setting upstream error block
-        if (block.isErrorBlock()) {
-          _upstreamErrorBlock = block;
-          return;
-        } else if (TransferableBlockUtils.isEndOfStream(block)) {
-          _readyToConstruct = true;
-          return;
-        }
-
+      while (!TransferableBlockUtils.isEndOfStream(block)) {
         List<Object[]> container = block.getContainer();
         if (_priorityQueue == null) {
           // TODO: when push-down properly, we shouldn't get more than _numRowsToKeep
@@ -175,6 +163,11 @@ public class SortOperator extends MultiStageOperator {
           }
         }
         block = _upstreamOperator.nextBlock();
+      }
+      if (block.isErrorBlock()) {
+        _upstreamErrorBlock = block;
+      } else {
+        _readyToConstruct = true;
       }
     }
   }

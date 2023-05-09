@@ -164,14 +164,10 @@ public class WindowAggregateOperator extends MultiStageOperator {
   @Override
   protected TransferableBlock getNextBlock() {
     try {
-      if (!_readyToConstruct && !consumeInputBlocks()) {
-        return TransferableBlockUtils.getNoOpTransferableBlock();
-      }
-
+      consumeInputBlocks();
       if (_upstreamErrorBlock != null) {
         return _upstreamErrorBlock;
       }
-
       if (!_hasReturnedWindowAggregateBlock) {
         return produceWindowAggregatedBlock();
       } else {
@@ -274,19 +270,10 @@ public class WindowAggregateOperator extends MultiStageOperator {
   /**
    * @return whether or not the operator is ready to move on (EOS or ERROR)
    */
-  private boolean consumeInputBlocks() {
+  private void consumeInputBlocks() {
     Key emptyOrderKey = AggregationUtils.extractEmptyKey();
     TransferableBlock block = _inputOperator.nextBlock();
-    while (!block.isNoOpBlock()) {
-      // setting upstream error block
-      if (block.isErrorBlock()) {
-        _upstreamErrorBlock = block;
-        return true;
-      } else if (block.isEndOfStreamBlock()) {
-        _readyToConstruct = true;
-        return true;
-      }
-
+    while (!TransferableBlockUtils.isEndOfStream(block)) {
       List<Object[]> container = block.getContainer();
       if (_windowFrame.getWindowFrameType() == WindowNode.WindowFrameType.RANGE) {
         // Only need to accumulate the aggregate function values for RANGE type. ROW type can be calculated as
@@ -315,7 +302,11 @@ public class WindowAggregateOperator extends MultiStageOperator {
       }
       block = _inputOperator.nextBlock();
     }
-    return false;
+    if (block.isErrorBlock()) {
+      _upstreamErrorBlock = block;
+    } else if (block.isEndOfStreamBlock()) {
+      _readyToConstruct = true;
+    }
   }
 
   /**

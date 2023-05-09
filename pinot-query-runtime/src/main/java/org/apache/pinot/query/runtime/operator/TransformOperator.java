@@ -104,10 +104,6 @@ public class TransformOperator extends MultiStageOperator {
       return block;
     }
 
-    if (TransferableBlockUtils.isNoOpBlock(block)) {
-      return block;
-    }
-
     List<Object[]> resultRows = new ArrayList<>();
     List<Object[]> container = block.getContainer();
     for (Object[] row : container) {

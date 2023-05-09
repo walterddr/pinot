@@ -128,14 +128,10 @@ public class AggregateOperator extends MultiStageOperator {
   @Override
   protected TransferableBlock getNextBlock() {
     try {
-      if (!_readyToConstruct && !consumeInputBlocks()) {
-        return TransferableBlockUtils.getNoOpTransferableBlock();
-      }
-
+      consumeInputBlocks();
       if (_upstreamErrorBlock != null) {
         return _upstreamErrorBlock;
       }
-
       if (!_hasReturnedAggregateBlock) {
         return produceAggregatedBlock();
       } else {
@@ -182,21 +178,9 @@ public class AggregateOperator extends MultiStageOperator {
     return new TransferableBlock(Collections.singletonList(row), _resultSchema, DataBlock.Type.ROW);
   }
 
-  /**
-   * @return whether or not the operator is ready to move on (EOS or ERROR)
-   */
-  private boolean consumeInputBlocks() {
+  private void consumeInputBlocks() {
     TransferableBlock block = _inputOperator.nextBlock();
-    while (!block.isNoOpBlock()) {
-      // setting upstream error block
-      if (block.isErrorBlock()) {
-        _upstreamErrorBlock = block;
-        return true;
-      } else if (block.isEndOfStreamBlock()) {
-        _readyToConstruct = true;
-        return true;
-      }
-
+    while (!block.isEndOfStreamBlock()) {
       List<Object[]> container = block.getContainer();
       for (Object[] row : container) {
         Key key = AggregationUtils.extractRowKey(row, _groupSet);
@@ -207,7 +191,12 @@ public class AggregateOperator extends MultiStageOperator {
       }
       block = _inputOperator.nextBlock();
     }
-    return false;
+    // setting status of the consumption of input block process.
+    if (block.isErrorBlock()) {
+      _upstreamErrorBlock = block;
+    } else {
+      _readyToConstruct = true;
+    }
   }
 
   // NOTE: the below two classes are needed depending on where the
