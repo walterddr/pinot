@@ -100,9 +100,9 @@ public class LeafSchedulerService implements SchedulerService {
   }
 
   @Override
-  public void awaitDataAvailable(OpChainId opChainId, long timeoutMs) {
+  public boolean awaitDataAvailable(OpChainId opChainId, long timeoutMs) {
     OpChainStatus status = _opChainStatusMap.computeIfAbsent(opChainId, k -> new OpChainStatus());
-    status.awaitStatus(timeoutMs);
+    return status.awaitStatus(timeoutMs);
   }
 
   @Override

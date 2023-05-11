@@ -24,6 +24,7 @@ import org.apache.pinot.query.mailbox.SendingMailbox;
 import org.apache.pinot.query.planner.partitioning.KeySelector;
 import org.apache.pinot.query.runtime.blocks.BlockSplitter;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
+import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
 
 
 /**
@@ -36,9 +37,9 @@ class HashExchange extends BlockExchange {
   // TODO: ensure that server instance list is sorted using same function in sender.
   private final KeySelector<Object[], Object[]> _keySelector;
 
-  HashExchange(List<SendingMailbox> sendingMailboxes, KeySelector<Object[], Object[]> selector,
-      BlockSplitter splitter) {
-    super(sendingMailboxes, splitter);
+  HashExchange(OpChainExecutionContext context, List<SendingMailbox> sendingMailboxes,
+      KeySelector<Object[], Object[]> selector, BlockSplitter splitter) {
+    super(context, sendingMailboxes, splitter);
     _keySelector = selector;
   }
 
@@ -55,7 +56,8 @@ class HashExchange extends BlockExchange {
     }
     for (int i = 0; i < destinations.size(); i++) {
       if (destIdxToRows[i] != null) {
-        sendBlock(destinations.get(i), new TransferableBlock(destIdxToRows[i], block.getDataSchema(), block.getType()));
+        sendBlockToMailbox(destinations.get(i),
+            new TransferableBlock(destIdxToRows[i], block.getDataSchema(), block.getType()));
       }
     }
   }

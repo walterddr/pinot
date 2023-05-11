@@ -328,8 +328,8 @@ public class QueryDispatcher {
     }
 
     @Override
-    public void awaitDataAvailable(OpChainId opChainId, long timeoutMs) {
-      // no-op
+    public boolean awaitDataAvailable(OpChainId opChainId, long timeoutMs) {
+      return true;
     }
 
     @Override

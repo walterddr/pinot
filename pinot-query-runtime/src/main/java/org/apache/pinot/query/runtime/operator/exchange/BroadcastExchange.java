@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.pinot.query.mailbox.SendingMailbox;
 import org.apache.pinot.query.runtime.blocks.BlockSplitter;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
+import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
 
 
 /**
@@ -29,15 +30,16 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlock;
  */
 class BroadcastExchange extends BlockExchange {
 
-  protected BroadcastExchange(List<SendingMailbox> sendingMailboxes, BlockSplitter splitter) {
-    super(sendingMailboxes, splitter);
+  protected BroadcastExchange(OpChainExecutionContext context, List<SendingMailbox> sendingMailboxes,
+      BlockSplitter splitter) {
+    super(context, sendingMailboxes, splitter);
   }
 
   @Override
   protected void route(List<SendingMailbox> destinations, TransferableBlock block)
       throws Exception {
     for (SendingMailbox mailbox : destinations) {
-      sendBlock(mailbox, block);
+      sendBlockToMailbox(mailbox, block);
     }
   }
 }

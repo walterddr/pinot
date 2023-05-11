@@ -62,7 +62,7 @@ public class BroadcastExchangeTest {
     ImmutableList<SendingMailbox> destinations = ImmutableList.of(_mailbox1, _mailbox2);
 
     // When:
-    new BroadcastExchange(destinations, TransferableBlockUtils::splitBlock).route(destinations, _block);
+    new BroadcastExchange(null, destinations, TransferableBlockUtils::splitBlock).route(destinations, _block);
 
     ArgumentCaptor<TransferableBlock> captor = ArgumentCaptor.forClass(TransferableBlock.class);
 

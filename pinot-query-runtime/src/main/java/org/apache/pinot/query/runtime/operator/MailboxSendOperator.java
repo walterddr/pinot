@@ -109,7 +109,8 @@ public class MailboxSendOperator extends MultiStageOperator {
       sendingMailboxes.add(mailboxService.getSendingMailbox(receiverMailboxMetadatas.getVirtualAddress(i).hostname(),
           receiverMailboxMetadatas.getVirtualAddress(i).port(), sendingMailboxIds.get(i), deadlineMs));
     }
-    return BlockExchange.getExchange(sendingMailboxes, exchangeType, keySelector, TransferableBlockUtils::splitBlock);
+    return BlockExchange.getExchange(context, sendingMailboxes, exchangeType, keySelector,
+        TransferableBlockUtils::splitBlock);
   }
 
   @Override

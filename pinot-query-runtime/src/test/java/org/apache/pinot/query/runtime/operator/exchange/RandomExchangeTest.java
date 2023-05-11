@@ -62,7 +62,7 @@ public class RandomExchangeTest {
     ImmutableList<SendingMailbox> destinations = ImmutableList.of(_mailbox1, _mailbox2);
 
     // When:
-    new RandomExchange(destinations, size -> 1, TransferableBlockUtils::splitBlock).route(destinations, _block);
+    new RandomExchange(null, destinations, size -> 1, TransferableBlockUtils::splitBlock).route(destinations, _block);
 
     ArgumentCaptor<TransferableBlock> captor = ArgumentCaptor.forClass(TransferableBlock.class);
     // Then:

@@ -28,7 +28,7 @@ public interface SchedulerService {
 
   void cancel(long requestId);
 
-  void awaitDataAvailable(OpChainId opChainId, long timeoutMs);
+  boolean awaitDataAvailable(OpChainId opChainId, long timeoutMs);
 
   void setDataAvailable(OpChainId opChainId);
 }

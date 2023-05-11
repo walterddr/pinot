@@ -63,8 +63,10 @@ public class BlockExchangeTest {
     // Given:
     List<SendingMailbox> destinations = ImmutableList.of(_mailbox1, _mailbox2);
     BlockExchange exchange = new TestBlockExchange(destinations);
+
     // When:
     exchange.send(TransferableBlockUtils.getEndOfStreamTransferableBlock());
+    exchange.sendBlock();
 
     // Then:
     ArgumentCaptor<TransferableBlock> captor = ArgumentCaptor.forClass(TransferableBlock.class);
@@ -89,6 +91,7 @@ public class BlockExchangeTest {
 
     // When:
     exchange.send(block);
+    exchange.sendBlock();
 
     // Then:
     ArgumentCaptor<TransferableBlock> captor = ArgumentCaptor.forClass(TransferableBlock.class);
@@ -120,6 +123,7 @@ public class BlockExchangeTest {
 
     // When:
     exchange.send(inBlock);
+    exchange.sendBlock();
 
     // Then:
     ArgumentCaptor<TransferableBlock> captor = ArgumentCaptor.forClass(TransferableBlock.class);
@@ -137,14 +141,14 @@ public class BlockExchangeTest {
     }
 
     protected TestBlockExchange(List<SendingMailbox> destinations, BlockSplitter splitter) {
-      super(destinations, splitter);
+      super(null, destinations, splitter);
     }
 
     @Override
     protected void route(List<SendingMailbox> destinations, TransferableBlock block)
         throws Exception {
       for (SendingMailbox mailbox : destinations) {
-        sendBlock(mailbox, block);
+        sendBlockToMailbox(mailbox, block);
       }
     }
   }

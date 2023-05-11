@@ -107,7 +107,7 @@ public class OpChainExecutionContext {
     return _traceEnabled;
   }
 
-  public void yield() {
-    _schedulerService.awaitDataAvailable(_id, _deadlineMs - System.currentTimeMillis());
+  public boolean yield() {
+    return _schedulerService.awaitDataAvailable(_id, _deadlineMs - System.currentTimeMillis());
   }
 }
