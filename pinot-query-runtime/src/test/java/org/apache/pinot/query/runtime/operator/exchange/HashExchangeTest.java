@@ -70,7 +70,7 @@ public class HashExchangeTest {
     ImmutableList<SendingMailbox> destinations = ImmutableList.of(_mailbox1, _mailbox2);
 
     // When:
-    new HashExchange(destinations, selector, TransferableBlockUtils::splitBlock).route(destinations, _block);
+    new HashExchange(null, destinations, selector, TransferableBlockUtils::splitBlock).route(destinations, _block);
 
     // Then:
     ArgumentCaptor<TransferableBlock> captor = ArgumentCaptor.forClass(TransferableBlock.class);

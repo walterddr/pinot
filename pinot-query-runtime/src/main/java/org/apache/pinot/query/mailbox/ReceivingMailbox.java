@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
  * initialized when the send operator is running.
  */
 public class ReceivingMailbox {
-  public static final int DEFAULT_MAX_PENDING_BLOCKS = 5;
+  public static final int DEFAULT_MAX_PENDING_BLOCKS = 1;
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ReceivingMailbox.class);
   private static final TransferableBlock CANCELLED_ERROR_BLOCK =

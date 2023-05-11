@@ -25,6 +25,7 @@ import java.util.function.IntFunction;
 import org.apache.pinot.query.mailbox.SendingMailbox;
 import org.apache.pinot.query.runtime.blocks.BlockSplitter;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
+import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
 
 
 /**
@@ -36,13 +37,14 @@ class RandomExchange extends BlockExchange {
 
   private final IntFunction<Integer> _rand;
 
-  RandomExchange(List<SendingMailbox> sendingMailboxes, BlockSplitter splitter) {
-    this(sendingMailboxes, RANDOM::nextInt, splitter);
+  RandomExchange(OpChainExecutionContext context, List<SendingMailbox> sendingMailboxes, BlockSplitter splitter) {
+    this(context, sendingMailboxes, RANDOM::nextInt, splitter);
   }
 
   @VisibleForTesting
-  RandomExchange(List<SendingMailbox> sendingMailboxes, IntFunction<Integer> rand, BlockSplitter splitter) {
-    super(sendingMailboxes, splitter);
+  RandomExchange(OpChainExecutionContext context, List<SendingMailbox> sendingMailboxes, IntFunction<Integer> rand,
+      BlockSplitter splitter) {
+    super(context, sendingMailboxes, splitter);
     _rand = rand;
   }
 
@@ -50,6 +52,6 @@ class RandomExchange extends BlockExchange {
   protected void route(List<SendingMailbox> destinations, TransferableBlock block)
       throws Exception {
     int destinationIdx = _rand.apply(destinations.size());
-    sendBlock(destinations.get(destinationIdx), block);
+    sendBlockToMailbox(destinations.get(destinationIdx), block);
   }
 }

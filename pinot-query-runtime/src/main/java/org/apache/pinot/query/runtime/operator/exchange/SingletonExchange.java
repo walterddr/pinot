@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.pinot.query.mailbox.SendingMailbox;
 import org.apache.pinot.query.runtime.blocks.BlockSplitter;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
+import org.apache.pinot.query.runtime.plan.OpChainExecutionContext;
 
 
 /**
@@ -30,15 +31,15 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlock;
  */
 class SingletonExchange extends BlockExchange {
 
-  SingletonExchange(List<SendingMailbox> sendingMailboxes, BlockSplitter splitter) {
-    super(sendingMailboxes, splitter);
+  SingletonExchange(OpChainExecutionContext context, List<SendingMailbox> sendingMailboxes, BlockSplitter splitter) {
+    super(context, sendingMailboxes, splitter);
   }
 
   @Override
   protected void route(List<SendingMailbox> mailbox, TransferableBlock block)
       throws Exception {
     for (SendingMailbox sendingMailbox : mailbox) {
-      sendBlock(sendingMailbox, block);
+      sendBlockToMailbox(sendingMailbox, block);
     }
   }
 }

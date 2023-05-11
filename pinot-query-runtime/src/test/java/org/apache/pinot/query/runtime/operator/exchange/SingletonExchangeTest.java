@@ -60,7 +60,7 @@ public class SingletonExchangeTest {
     ImmutableList<SendingMailbox> destinations = ImmutableList.of(_mailbox1);
 
     // When:
-    new SingletonExchange(destinations, TransferableBlockUtils::splitBlock).route(destinations, _block);
+    new SingletonExchange(null, destinations, TransferableBlockUtils::splitBlock).route(destinations, _block);
 
     // Then:
     ArgumentCaptor<TransferableBlock> captor = ArgumentCaptor.forClass(TransferableBlock.class);

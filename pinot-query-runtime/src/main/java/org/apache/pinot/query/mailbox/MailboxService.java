@@ -23,11 +23,16 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.pinot.query.mailbox.channel.ChannelManager;
 import org.apache.pinot.query.mailbox.channel.GrpcMailboxServer;
+import org.apache.pinot.query.runtime.blocks.TransferableBlock;
+import org.apache.pinot.query.runtime.blocks.TransferableBlockUtils;
 import org.apache.pinot.query.runtime.operator.OpChainId;
+import org.apache.pinot.query.runtime.operator.exchange.BlockExchange;
 import org.apache.pinot.spi.env.PinotConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +64,7 @@ public class MailboxService {
   private final PinotConfiguration _config;
   private final Consumer<OpChainId> _receiveMailCallback;
   private final ChannelManager _channelManager = new ChannelManager();
+  private final ExecutorService _exchangeService = Executors.newCachedThreadPool();
 
   private GrpcMailboxServer _grpcMailboxServer;
 
@@ -93,6 +99,10 @@ public class MailboxService {
 
   public int getPort() {
     return _port;
+  }
+
+  public Consumer<OpChainId> getCallback() {
+    return _receiveMailCallback;
   }
 
   /**
@@ -133,5 +143,18 @@ public class MailboxService {
    */
   public void releaseReceivingMailbox(ReceivingMailbox mailbox) {
     _receivingMailboxCache.invalidate(mailbox.getId());
+  }
+
+  /**
+   * submit a block exchange to sending service for a single OpChain.
+   * @param blockExchange
+   */
+  public void submitExchangeRequest(BlockExchange blockExchange) {
+    _exchangeService.submit(() -> {
+      TransferableBlock block = blockExchange.sendBlock();
+      while (!TransferableBlockUtils.isEndOfStream(block)) {
+        block = blockExchange.sendBlock();
+      }
+    });
   }
 }
