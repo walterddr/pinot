@@ -100,6 +100,7 @@ public class QueryServer extends PinotQueryWorkerGrpc.PinotQueryWorkerImplBase {
           .putMetadata(QueryConfig.KEY_OF_SERVER_RESPONSE_STATUS_OK, "").build());
       responseObserver.onCompleted();
     } catch (Throwable t) {
+      LOGGER.error("Caught exception while compiling query stage: {} ", distributedStagePlan.getStageId(), t);
       responseObserver.onNext(Worker.QueryResponse.newBuilder()
           .putMetadata(QueryConfig.KEY_OF_SERVER_RESPONSE_STATUS_ERROR, QueryException.getTruncatedStackTrace(t))
           .build());
