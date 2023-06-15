@@ -94,9 +94,7 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
       Aggregate agg = call.rel(0);
       ImmutableList<RelHint> hints = agg.getHints();
       return !PinotHintStrategyTable.containsHint(hints, PinotHintStrategyTable.INTERNAL_AGG_INTERMEDIATE_STAGE)
-          && !PinotHintStrategyTable.containsHint(hints, PinotHintStrategyTable.INTERNAL_AGG_FINAL_STAGE)
-          && !PinotHintStrategyTable.containsHintOption(hints, PinotHintOptions.AGGREGATE_HINT_OPTIONS,
-          PinotHintOptions.AggregateOptions.IS_PARTITIONED_BY_GROUP_BY_KEYS);
+          && !PinotHintStrategyTable.containsHint(hints, PinotHintStrategyTable.INTERNAL_AGG_FINAL_STAGE);
     }
     return false;
   }
@@ -122,6 +120,13 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
       // This is not the default path. Use this group by optimization to skip leaf stage aggregation when aggregating
       // at leaf level could be wasted effort. eg: when cardinality of group by column is very high.
       createPlanWithoutLeafAggregation(call);
+      return;
+    }
+
+    ImmutableList<RelHint> hints = oldAggRel.getHints();
+    if (PinotHintStrategyTable.containsHintOption(hints, PinotHintOptions.AGGREGATE_HINT_OPTIONS,
+        PinotHintOptions.AggregateOptions.IS_PARTITIONED_BY_GROUP_BY_KEYS)) {
+      createPlanWithoutIntermediaAggregation(call);
       return;
     }
 
@@ -232,6 +237,18 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
     Preconditions.checkArgument(argList.size() <= 1,
         "Unable to convert call as the argList contains more than 1 argument");
     return argList.size() == 1 ? Collections.singletonList(oldCallIndexWithShift) : Collections.emptyList();
+  }
+
+  private void createPlanWithoutIntermediaAggregation(RelOptRuleCall call) {
+    Aggregate oldAggRel = call.rel(0);
+    ImmutableList<RelHint> oldHints = oldAggRel.getHints();
+    ImmutableList<RelHint> newHints =
+        new ImmutableList.Builder<RelHint>().addAll(oldHints).add(INTERMEDIATE_STAGE_HINT).build();
+    Aggregate newLeafAgg =
+        new LogicalAggregate(oldAggRel.getCluster(), oldAggRel.getTraitSet(), newHints, oldAggRel.getInput(),
+            oldAggRel.getGroupSet(), oldAggRel.getGroupSets(), oldAggRel.getAggCallList());
+    PinotLogicalExchange exchange = PinotLogicalExchange.create(newLeafAgg, RelDistributions.SINGLETON);
+    call.transformTo(exchange);
   }
 
   private void createPlanWithoutLeafAggregation(RelOptRuleCall call) {
