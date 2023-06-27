@@ -37,15 +37,16 @@ import org.apache.pinot.spi.utils.JsonUtils;
  * Supports serialization via JSON.
  */
 @JsonPropertyOrder({
-    "resultTable", "stageStats", "exceptions", "numServersQueried", "numServersResponded", "numSegmentsQueried",
-    "numSegmentsProcessed", "numSegmentsMatched", "numConsumingSegmentsQueried", "numConsumingSegmentsProcessed",
-    "numConsumingSegmentsMatched", "numDocsScanned", "numEntriesScannedInFilter", "numEntriesScannedPostFilter",
-    "numGroupsLimitReached", "totalDocs", "timeUsedMs", "offlineThreadCpuTimeNs", "realtimeThreadCpuTimeNs",
-    "offlineSystemActivitiesCpuTimeNs", "realtimeSystemActivitiesCpuTimeNs", "offlineResponseSerializationCpuTimeNs",
-    "realtimeResponseSerializationCpuTimeNs", "offlineTotalCpuTimeNs", "realtimeTotalCpuTimeNs", "segmentStatistics",
-    "traceInfo"
+    "resultTable", "requestId", "stageStats", "exceptions", "numServersQueried", "numServersResponded",
+    "numSegmentsQueried", "numSegmentsProcessed", "numSegmentsMatched", "numConsumingSegmentsQueried",
+    "numConsumingSegmentsProcessed", "numConsumingSegmentsMatched", "numDocsScanned", "numEntriesScannedInFilter",
+    "numEntriesScannedPostFilter", "numGroupsLimitReached", "totalDocs", "timeUsedMs", "offlineThreadCpuTimeNs",
+    "realtimeThreadCpuTimeNs", "offlineSystemActivitiesCpuTimeNs", "realtimeSystemActivitiesCpuTimeNs",
+    "offlineResponseSerializationCpuTimeNs", "realtimeResponseSerializationCpuTimeNs", "offlineTotalCpuTimeNs",
+    "realtimeTotalCpuTimeNs", "segmentStatistics", "traceInfo"
 })
 public class BrokerResponseNativeV2 extends BrokerResponseNative {
+
   private final Map<Integer, BrokerResponseStats> _stageIdStats = new HashMap<>();
 
   public BrokerResponseNativeV2() {

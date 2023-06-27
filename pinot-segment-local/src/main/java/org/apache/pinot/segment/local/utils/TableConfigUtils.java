@@ -60,6 +60,7 @@ import org.apache.pinot.spi.config.table.TableTaskConfig;
 import org.apache.pinot.spi.config.table.TableType;
 import org.apache.pinot.spi.config.table.TierConfig;
 import org.apache.pinot.spi.config.table.UpsertConfig;
+import org.apache.pinot.spi.config.table.assignment.InstanceAssignmentConfig;
 import org.apache.pinot.spi.config.table.assignment.InstancePartitionsType;
 import org.apache.pinot.spi.config.table.ingestion.AggregationConfig;
 import org.apache.pinot.spi.config.table.ingestion.BatchIngestionConfig;
@@ -141,6 +142,7 @@ public final class TableConfigUtils {
       validateIndexingConfig(tableConfig.getIndexingConfig(), schema);
       validateFieldConfigList(tableConfig.getFieldConfigList(), tableConfig.getIndexingConfig(), schema);
       validateInstancePartitionsTypeMapConfig(tableConfig);
+      validatePartitionedReplicaGroupInstance(tableConfig);
       if (!skipTypes.contains(ValidationType.UPSERT)) {
         validateUpsertAndDedupConfig(tableConfig, schema);
         validatePartialUpsertStrategies(tableConfig, schema);
@@ -568,19 +570,28 @@ public final class TableConfigUtils {
         "Upsert/Dedup table must use strict replica-group (i.e. strictReplicaGroup) based routing");
 
     // specifically for upsert
-    if (tableConfig.getUpsertMode() != UpsertConfig.Mode.NONE) {
-
+    UpsertConfig upsertConfig = tableConfig.getUpsertConfig();
+    if (upsertConfig != null) {
       // no startree index
       Preconditions.checkState(CollectionUtils.isEmpty(tableConfig.getIndexingConfig().getStarTreeIndexConfigs())
               && !tableConfig.getIndexingConfig().isEnableDefaultStarTree(),
           "The upsert table cannot have star-tree index.");
 
       // comparison column exists
-      if (tableConfig.getUpsertConfig().getComparisonColumns() != null) {
-        List<String> comparisonCols = tableConfig.getUpsertConfig().getComparisonColumns();
-        for (String comparisonCol : comparisonCols) {
-          Preconditions.checkState(schema.hasColumn(comparisonCol), "The comparison column does not exist on schema");
+      List<String> comparisonColumns = upsertConfig.getComparisonColumns();
+      if (comparisonColumns != null) {
+        for (String column : comparisonColumns) {
+          Preconditions.checkState(schema.hasColumn(column), "The comparison column does not exist on schema");
         }
+      }
+
+      // Delete record column exist and is a BOOLEAN field
+      String deleteRecordColumn = upsertConfig.getDeleteRecordColumn();
+      if (deleteRecordColumn != null) {
+        FieldSpec fieldSpec = schema.getFieldSpecFor(deleteRecordColumn);
+        Preconditions.checkState(
+            fieldSpec != null && fieldSpec.isSingleValueField() && fieldSpec.getDataType() == DataType.BOOLEAN,
+            "The delete record column must be a single-valued BOOLEAN column");
       }
     }
     validateAggregateMetricsForUpsertConfig(tableConfig);
@@ -602,6 +613,24 @@ public final class TableConfigUtils {
           !tableConfig.getInstanceAssignmentConfigMap().containsKey(instancePartitionsType.toString()),
           String.format("Both InstanceAssignmentConfigMap and InstancePartitionsMap set for %s",
               instancePartitionsType));
+    }
+  }
+
+  /**
+   * Detects whether both replicaGroupStrategyConfig and replicaGroupPartitionConfig are set for a given
+   * table. Validation fails because the table would ignore replicaGroupStrategyConfig
+   * when the replicaGroupPartitionConfig is already set.
+   */
+  @VisibleForTesting
+  static void validatePartitionedReplicaGroupInstance(TableConfig tableConfig) {
+    if (tableConfig.getValidationConfig().getReplicaGroupStrategyConfig() == null
+        || MapUtils.isEmpty(tableConfig.getInstanceAssignmentConfigMap())) {
+      return;
+    }
+    for (Map.Entry<String, InstanceAssignmentConfig> entry: tableConfig.getInstanceAssignmentConfigMap().entrySet()) {
+      boolean isNullReplicaGroupPartitionConfig = entry.getValue().getReplicaGroupPartitionConfig() == null;
+      Preconditions.checkState(isNullReplicaGroupPartitionConfig,
+          "Both replicaGroupStrategyConfig and replicaGroupPartitionConfig is provided");
     }
   }
 

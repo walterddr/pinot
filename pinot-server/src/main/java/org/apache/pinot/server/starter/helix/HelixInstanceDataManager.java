@@ -22,6 +22,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,6 +67,7 @@ import org.apache.pinot.segment.spi.SegmentMetadata;
 import org.apache.pinot.segment.spi.loader.SegmentDirectoryLoader;
 import org.apache.pinot.segment.spi.loader.SegmentDirectoryLoaderContext;
 import org.apache.pinot.segment.spi.loader.SegmentDirectoryLoaderRegistry;
+import org.apache.pinot.server.realtime.ServerSegmentCompletionProtocolHandler;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.env.PinotConfiguration;
@@ -96,6 +98,7 @@ public class HelixInstanceDataManager implements InstanceDataManager {
   // Fixed size LRU cache for storing last N errors on the instance.
   // Key is TableNameWithType-SegmentName pair.
   private LoadingCache<Pair<String, String>, SegmentErrorInfo> _errorCache;
+  private ExecutorService _segmentRefreshExecutor;
 
   @Override
   public void setSupplierOfIsServerReadyToServeQueries(Supplier<Boolean> isServingQueries) {
@@ -113,7 +116,7 @@ public class HelixInstanceDataManager implements InstanceDataManager {
     _helixManager = helixManager;
     _serverMetrics = serverMetrics;
     _segmentUploader = new PinotFSSegmentUploader(_instanceDataManagerConfig.getSegmentStoreUri(),
-        PinotFSSegmentUploader.DEFAULT_SEGMENT_UPLOAD_TIMEOUT_MILLIS);
+        ServerSegmentCompletionProtocolHandler.getSegmentUploadRequestTimeoutMs(), _serverMetrics);
 
     _externalViewDroppedMaxWaitMs = _instanceDataManagerConfig.getExternalViewDroppedMaxWaitMs();
     _externalViewDroppedCheckInternalMs = _instanceDataManagerConfig.getExternalViewDroppedCheckIntervalMs();
@@ -128,7 +131,10 @@ public class HelixInstanceDataManager implements InstanceDataManager {
 
     // Initialize segment build time lease extender executor
     SegmentBuildTimeLeaseExtender.initExecutor();
-
+    // Initialize a fixed thread pool to reload/refresh segments in parallel. The getMaxParallelRefreshThreads() is
+    // used to initialize a segment refresh semaphore to limit the parallelism, so create a pool of same size.
+    _segmentRefreshExecutor = Executors.newFixedThreadPool(getMaxParallelRefreshThreads(),
+        new ThreadFactoryBuilder().setNameFormat("segment-refresh-thread-%d").build());
     // Initialize the table data manager provider
     TableDataManagerProvider.init(_instanceDataManagerConfig);
     LOGGER.info("Initialized Helix instance data manager");
@@ -183,6 +189,7 @@ public class HelixInstanceDataManager implements InstanceDataManager {
 
   @Override
   public synchronized void shutDown() {
+    _segmentRefreshExecutor.shutdownNow();
     for (TableDataManager tableDataManager : _tableDataManagerMap.values()) {
       tableDataManager.shutDown();
     }
@@ -365,7 +372,6 @@ public class HelixInstanceDataManager implements InstanceDataManager {
     Preconditions.checkNotNull(tableConfig);
     Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, tableNameWithType);
     List<String> failedSegments = new ArrayList<>();
-    ExecutorService workers = Executors.newCachedThreadPool();
     final AtomicReference<Exception> sampleException = new AtomicReference<>();
     //calling thread hasn't acquired any permit so we don't reload any segments using it.
     CompletableFuture.allOf(segmentsMetadata.stream().map(segmentMetadata -> CompletableFuture.runAsync(() -> {
@@ -382,10 +388,7 @@ public class HelixInstanceDataManager implements InstanceDataManager {
         failedSegments.add(segmentName);
         sampleException.set(e);
       }
-    }, workers)).toArray(CompletableFuture[]::new)).get();
-
-    workers.shutdownNow();
-
+    }, _segmentRefreshExecutor)).toArray(CompletableFuture[]::new)).get();
     if (sampleException.get() != null) {
       throw new RuntimeException(
           String.format("Failed to reload %d/%d segments: %s in table: %s", failedSegments.size(),

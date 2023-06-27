@@ -34,12 +34,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.configuration.Configuration;
 import org.apache.commons.configuration.ConfigurationConverter;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.helix.HelixManager;
 import org.apache.helix.store.zk.ZkHelixPropertyStore;
@@ -627,14 +629,21 @@ public abstract class BaseTableDataManager implements TableDataManager {
     LOGGER.info("Trying to download segment {} using streamed download-untar with maxStreamRateInByte {}", segmentName,
         maxStreamRateInByte);
     String uri = zkMetadata.getDownloadUrl();
+    AtomicInteger attempts = new AtomicInteger(0);
     try {
-      File ret = SegmentFetcherFactory.fetchAndStreamUntarToLocal(uri, tempRootDir, maxStreamRateInByte);
-      LOGGER.info("Download and untarred segment: {} for table: {} from: {}", segmentName, _tableNameWithType, uri);
-      return ret;
-    } catch (AttemptsExceededException e) {
-      LOGGER.error("Attempts exceeded when stream download-untarring segment: {} for table: {} from: {} to: {}",
-          segmentName, _tableNameWithType, uri, tempRootDir);
-      _serverMetrics.addMeteredTableValue(_tableNameWithType, ServerMeter.SEGMENT_STREAMED_DOWNLOAD_UNTAR_FAILURES, 1L);
+        File ret = SegmentFetcherFactory.fetchAndStreamUntarToLocal(uri, tempRootDir, maxStreamRateInByte, attempts);
+        _serverMetrics.addMeteredTableValue(_tableNameWithType, ServerMeter.SEGMENT_STREAMED_DOWNLOAD_UNTAR_FAILURES,
+            attempts.get());
+        LOGGER.info("Downloaded and untarred segment: {} for table: {} from: {} attempts: {}", segmentName,
+            _tableNameWithType, uri, attempts.get());
+        return ret;
+    } catch (Exception e) {
+      _serverMetrics.addMeteredTableValue(_tableNameWithType, ServerMeter.SEGMENT_STREAMED_DOWNLOAD_UNTAR_FAILURES,
+          attempts.get());
+      if (e instanceof AttemptsExceededException) {
+        LOGGER.error("Attempts exceeded when stream download-untarring segment: {} for table: {} from: {} to: {}",
+            segmentName, _tableNameWithType, uri, tempRootDir);
+      }
       throw e;
     } finally {
       if (_segmentDownloadSemaphore != null) {
@@ -677,16 +686,13 @@ public abstract class BaseTableDataManager implements TableDataManager {
     if (segmentTier == null) {
       return getSegmentDataDir(segmentName);
     }
-    try {
-      String tierDataDir =
-          TierConfigUtils.getDataDirForTier(tableConfig, segmentTier, _tableDataManagerConfig.getInstanceTierConfigs());
-      File tierTableDataDir = new File(tierDataDir, _tableNameWithType);
-      return new File(tierTableDataDir, segmentName);
-    } catch (Exception e) {
-      LOGGER.warn("Failed to get dataDir for segment: {} of table: {} on tier: {} due to error: {}", segmentName,
-          _tableNameWithType, segmentTier, e.getMessage());
+    String tierDataDir =
+        TierConfigUtils.getDataDirForTier(tableConfig, segmentTier, _tableDataManagerConfig.getInstanceTierConfigs());
+    if (StringUtils.isEmpty(tierDataDir)) {
       return getSegmentDataDir(segmentName);
     }
+    File tierTableDataDir = new File(tierDataDir, _tableNameWithType);
+    return new File(tierTableDataDir, segmentName);
   }
 
   @Nullable

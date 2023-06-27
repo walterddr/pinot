@@ -58,6 +58,8 @@ public enum AggregationFunctionType {
   PERCENTILETDIGEST("percentileTDigest"),
   PERCENTILERAWTDIGEST("percentileRawTDigest"),
   PERCENTILESMARTTDIGEST("percentileSmartTDigest"),
+  PERCENTILEKLL("percentileKLL"),
+  PERCENTILERAWKLL("percentileRawKLL"),
   IDSET("idSet"),
   HISTOGRAM("histogram"),
   COVARPOP("covarPop"),
@@ -69,6 +71,15 @@ public enum AggregationFunctionType {
   SKEWNESS("skewness"),
   KURTOSIS("kurtosis"),
   FOURTHMOMENT("fourthmoment"),
+
+  // DataSketches Tuple Sketch support
+  DISTINCTCOUNTTUPLESKETCH("distinctCountTupleSketch"),
+
+  // DataSketches Tuple Sketch support for Integer based Tuple Sketches
+  DISTINCTCOUNTRAWINTEGERSUMTUPLESKETCH("distinctCountRawIntegerSumTupleSketch"),
+
+  SUMVALUESINTEGERSUMTUPLESKETCH("sumValuesIntegerSumTupleSketch"),
+  AVGVALUEINTEGERSUMTUPLESKETCH("avgValueIntegerSumTupleSketch"),
 
   // Geo aggregation functions
   STUNION("STUnion"),
@@ -91,6 +102,8 @@ public enum AggregationFunctionType {
   PERCENTILERAWESTMV("percentileRawEstMV"),
   PERCENTILETDIGESTMV("percentileTDigestMV"),
   PERCENTILERAWTDIGESTMV("percentileRawTDigestMV"),
+  PERCENTILEKLLMV("percentileKLLMV"),
+  PERCENTILERAWKLLMV("percentileRawKLLMV"),
   DISTINCT("distinct"),
 
   // boolean aggregate functions
@@ -103,7 +116,10 @@ public enum AggregationFunctionType {
   PARENTARGMIN(CommonConstants.RewriterConstants.PARENT_AGGREGATION_NAME_PREFIX + ARGMIN.getName()),
   PARENTARGMAX(CommonConstants.RewriterConstants.PARENT_AGGREGATION_NAME_PREFIX + ARGMAX.getName()),
   CHILDARGMIN(CommonConstants.RewriterConstants.CHILD_AGGREGATION_NAME_PREFIX + ARGMIN.getName()),
-  CHILDARGMAX(CommonConstants.RewriterConstants.CHILD_AGGREGATION_NAME_PREFIX + ARGMAX.getName());
+  CHILDARGMAX(CommonConstants.RewriterConstants.CHILD_AGGREGATION_NAME_PREFIX + ARGMAX.getName()),
+
+  // funnel aggregate functions
+  FUNNELCOUNT("funnelCount");
 
   private static final Set<String> NAMES = Arrays.stream(values()).flatMap(func -> Stream.of(func.name(),
       func.getName(), func.getName().toLowerCase())).collect(Collectors.toSet());
@@ -151,6 +167,10 @@ public enum AggregationFunctionType {
         return PERCENTILETDIGEST;
       } else if (remainingFunctionName.equals("RAWTDIGEST") || remainingFunctionName.matches("RAWTDIGEST\\d+")) {
         return PERCENTILERAWTDIGEST;
+      } else if (remainingFunctionName.equals("KLL") || remainingFunctionName.matches("KLL\\d+")) {
+        return PERCENTILEKLL;
+      } else if (remainingFunctionName.equals("RAWKLL") || remainingFunctionName.matches("RAWKLL\\d+")) {
+        return PERCENTILERAWKLL;
       } else if (remainingFunctionName.equals("MV") || remainingFunctionName.matches("\\d+MV")) {
         return PERCENTILEMV;
       } else if (remainingFunctionName.equals("ESTMV") || remainingFunctionName.matches("EST\\d+MV")) {
@@ -161,6 +181,10 @@ public enum AggregationFunctionType {
         return PERCENTILETDIGESTMV;
       } else if (remainingFunctionName.equals("RAWTDIGESTMV") || remainingFunctionName.matches("RAWTDIGEST\\d+MV")) {
         return PERCENTILERAWTDIGESTMV;
+      } else if (remainingFunctionName.equals("KLLMV") || remainingFunctionName.matches("KLL\\d+MV")) {
+        return PERCENTILEKLLMV;
+      } else if (remainingFunctionName.equals("RAWKLLMV") || remainingFunctionName.matches("RAWKLL\\d+MV")) {
+        return PERCENTILEKLLMV;
       } else {
         throw new IllegalArgumentException("Invalid aggregation function name: " + functionName);
       }

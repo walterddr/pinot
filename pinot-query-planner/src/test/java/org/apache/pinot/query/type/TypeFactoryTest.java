@@ -43,6 +43,7 @@ public class TypeFactoryTest {
         .addSingleValueDimension("DOUBLE_COL", FieldSpec.DataType.DOUBLE)
         .addSingleValueDimension("STRING_COL", FieldSpec.DataType.STRING)
         .addSingleValueDimension("BYTES_COL", FieldSpec.DataType.BYTES)
+        .addSingleValueDimension("JSON_COL", FieldSpec.DataType.JSON)
         .addMultiValueDimension("INT_ARRAY_COL", FieldSpec.DataType.INT)
         .addMultiValueDimension("LONG_ARRAY_COL", FieldSpec.DataType.LONG)
         .addMultiValueDimension("FLOAT_ARRAY_COL", FieldSpec.DataType.FLOAT)
@@ -55,18 +56,27 @@ public class TypeFactoryTest {
     for (RelDataTypeField field : fieldList) {
       switch (field.getName()) {
         case "INT_COL":
-          Assert.assertEquals(field.getType(), new BasicSqlType(TYPE_SYSTEM, SqlTypeName.INTEGER));
+          BasicSqlType intBasicSqlType = new BasicSqlType(TYPE_SYSTEM, SqlTypeName.INTEGER);
+          Assert.assertEquals(field.getType(), intBasicSqlType);
+          checkPrecisionScale(field, intBasicSqlType);
           break;
         case "LONG_COL":
-          Assert.assertEquals(field.getType(), new BasicSqlType(TYPE_SYSTEM, SqlTypeName.BIGINT));
+          BasicSqlType bigIntBasicSqlType = new BasicSqlType(TYPE_SYSTEM, SqlTypeName.BIGINT);
+          Assert.assertEquals(field.getType(), bigIntBasicSqlType);
+          checkPrecisionScale(field, bigIntBasicSqlType);
           break;
         case "FLOAT_COL":
-          Assert.assertEquals(field.getType(), new BasicSqlType(TYPE_SYSTEM, SqlTypeName.FLOAT));
+          BasicSqlType floatBasicSqlType = new BasicSqlType(TYPE_SYSTEM, SqlTypeName.REAL);
+          Assert.assertEquals(field.getType(), floatBasicSqlType);
+          checkPrecisionScale(field, floatBasicSqlType);
           break;
         case "DOUBLE_COL":
-          Assert.assertEquals(field.getType(), new BasicSqlType(TYPE_SYSTEM, SqlTypeName.DOUBLE));
+          BasicSqlType doubleBasicSqlType = new BasicSqlType(TYPE_SYSTEM, SqlTypeName.DOUBLE);
+          Assert.assertEquals(field.getType(), doubleBasicSqlType);
+          checkPrecisionScale(field, doubleBasicSqlType);
           break;
         case "STRING_COL":
+        case "JSON_COL":
           Assert.assertEquals(field.getType(), new BasicSqlType(TYPE_SYSTEM, SqlTypeName.VARCHAR));
           break;
         case "BYTES_COL":
@@ -82,7 +92,7 @@ public class TypeFactoryTest {
           break;
         case "FLOAT_ARRAY_COL":
           Assert.assertEquals(field.getType(),
-              new ArraySqlType(new BasicSqlType(TYPE_SYSTEM, SqlTypeName.FLOAT), false));
+              new ArraySqlType(new BasicSqlType(TYPE_SYSTEM, SqlTypeName.REAL), false));
           break;
         case "DOUBLE_ARRAY_COL":
           Assert.assertEquals(field.getType(),
@@ -101,5 +111,11 @@ public class TypeFactoryTest {
           break;
       }
     }
+  }
+
+  //tests precision and scale for numeric data type
+  private void checkPrecisionScale(RelDataTypeField field, BasicSqlType basicSqlType) {
+    Assert.assertEquals(field.getValue().getPrecision(), basicSqlType.getPrecision());
+    Assert.assertEquals(field.getValue().getScale(), basicSqlType.getScale());
   }
 }

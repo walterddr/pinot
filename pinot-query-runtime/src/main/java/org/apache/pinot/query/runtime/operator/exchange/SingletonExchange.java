@@ -18,10 +18,14 @@
  */
 package org.apache.pinot.query.runtime.operator.exchange;
 
+import com.google.common.base.Preconditions;
 import java.util.List;
+import java.util.function.Consumer;
+import org.apache.pinot.query.mailbox.InMemorySendingMailbox;
 import org.apache.pinot.query.mailbox.SendingMailbox;
 import org.apache.pinot.query.runtime.blocks.BlockSplitter;
 import org.apache.pinot.query.runtime.blocks.TransferableBlock;
+import org.apache.pinot.query.runtime.operator.OpChainId;
 
 
 /**
@@ -30,15 +34,17 @@ import org.apache.pinot.query.runtime.blocks.TransferableBlock;
  */
 class SingletonExchange extends BlockExchange {
 
-  SingletonExchange(List<SendingMailbox> sendingMailboxes, BlockSplitter splitter) {
-    super(sendingMailboxes, splitter);
+  SingletonExchange(OpChainId opChainId, List<SendingMailbox> sendingMailboxes, BlockSplitter splitter,
+      Consumer<OpChainId> callback, long deadlineMs) {
+    super(opChainId, sendingMailboxes, splitter, callback, deadlineMs);
+    Preconditions.checkArgument(
+        sendingMailboxes.size() == 1 && sendingMailboxes.get(0) instanceof InMemorySendingMailbox,
+        "Expect single InMemorySendingMailbox for SingletonExchange");
   }
 
   @Override
-  protected void route(List<SendingMailbox> mailbox, TransferableBlock block)
+  protected void route(List<SendingMailbox> sendingMailboxes, TransferableBlock block)
       throws Exception {
-    for (SendingMailbox sendingMailbox : mailbox) {
-      sendBlock(sendingMailbox, block);
-    }
+    sendBlock(sendingMailboxes.get(0), block);
   }
 }

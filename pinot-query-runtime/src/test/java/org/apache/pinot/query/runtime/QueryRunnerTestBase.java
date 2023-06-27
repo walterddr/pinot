@@ -47,12 +47,13 @@ import org.apache.pinot.query.QueryEnvironment;
 import org.apache.pinot.query.QueryServerEnclosure;
 import org.apache.pinot.query.QueryTestSet;
 import org.apache.pinot.query.mailbox.MailboxService;
-import org.apache.pinot.query.planner.QueryPlan;
+import org.apache.pinot.query.planner.DispatchableSubPlan;
 import org.apache.pinot.query.planner.plannode.MailboxReceiveNode;
 import org.apache.pinot.query.routing.QueryServerInstance;
 import org.apache.pinot.query.routing.VirtualServerAddress;
 import org.apache.pinot.query.runtime.executor.SchedulerService;
 import org.apache.pinot.query.runtime.plan.DistributedStagePlan;
+import org.apache.pinot.query.runtime.plan.StageMetadata;
 import org.apache.pinot.query.service.QueryConfig;
 import org.apache.pinot.query.service.dispatch.QueryDispatcher;
 import org.apache.pinot.spi.data.FieldSpec;
@@ -96,7 +97,9 @@ public abstract class QueryRunnerTestBase extends QueryTestSet {
   protected List<Object[]> queryRunner(String sql, Map<Integer, ExecutionStatsAggregator> executionStatsAggregatorMap) {
     long requestId = RANDOM_REQUEST_ID_GEN.nextLong();
     SqlNodeAndOptions sqlNodeAndOptions = CalciteSqlParser.compileToSqlNodeAndOptions(sql);
-    QueryPlan queryPlan = _queryEnvironment.planQuery(sql, sqlNodeAndOptions, requestId).getQueryPlan();
+    QueryEnvironment.QueryPlannerResult queryPlannerResult =
+        _queryEnvironment.planQuery(sql, sqlNodeAndOptions, requestId);
+    DispatchableSubPlan dispatchableSubPlan = queryPlannerResult.getQueryPlan();
     Map<String, String> requestMetadataMap = new HashMap<>();
     requestMetadataMap.put(QueryConfig.KEY_OF_BROKER_REQUEST_ID, String.valueOf(requestId));
     requestMetadataMap.put(QueryConfig.KEY_OF_BROKER_REQUEST_TIMEOUT_MS,
@@ -109,35 +112,45 @@ public abstract class QueryRunnerTestBase extends QueryTestSet {
     }
 
     int reducerStageId = -1;
-    for (int stageId : queryPlan.getDispatchablePlanMetadataMap().keySet()) {
-      if (queryPlan.getQueryStageMap().get(stageId) instanceof MailboxReceiveNode) {
+    for (int stageId = 0; stageId < dispatchableSubPlan.getQueryStageList().size(); stageId++) {
+      if (dispatchableSubPlan.getQueryStageList().get(stageId).getPlanFragment()
+          .getFragmentRoot() instanceof MailboxReceiveNode) {
         reducerStageId = stageId;
       } else {
-        processDistributedStagePlans(queryPlan, stageId, requestMetadataMap);
+        processDistributedStagePlans(dispatchableSubPlan, stageId, requestMetadataMap);
       }
       if (executionStatsAggregatorMap != null) {
         executionStatsAggregatorMap.put(stageId, new ExecutionStatsAggregator(true));
       }
     }
     Preconditions.checkState(reducerStageId != -1);
-    ResultTable resultTable = QueryDispatcher.runReducer(requestId, queryPlan, reducerStageId,
+    ResultTable resultTable = QueryDispatcher.runReducer(requestId, dispatchableSubPlan, reducerStageId,
         Long.parseLong(requestMetadataMap.get(QueryConfig.KEY_OF_BROKER_REQUEST_TIMEOUT_MS)), _mailboxService,
         _schedulerService, executionStatsAggregatorMap, true);
     return resultTable.getRows();
   }
 
-  protected void processDistributedStagePlans(QueryPlan queryPlan, int stageId,
+  protected void processDistributedStagePlans(DispatchableSubPlan dispatchableSubPlan, int stageId,
       Map<String, String> requestMetadataMap) {
     Map<QueryServerInstance, List<Integer>> serverInstanceToWorkerIdMap =
-        queryPlan.getDispatchablePlanMetadataMap().get(stageId).getServerInstanceToWorkerIdMap();
+        dispatchableSubPlan.getQueryStageList().get(stageId).getServerInstanceToWorkerIdMap();
     for (Map.Entry<QueryServerInstance, List<Integer>> entry : serverInstanceToWorkerIdMap.entrySet()) {
       QueryServerInstance server = entry.getKey();
       for (int workerId : entry.getValue()) {
-        DistributedStagePlan distributedStagePlan = QueryDispatcher.constructDistributedStagePlan(
-            queryPlan, stageId, new VirtualServerAddress(server, workerId));
+        DistributedStagePlan distributedStagePlan = constructDistributedStagePlan(
+            dispatchableSubPlan, stageId, new VirtualServerAddress(server, workerId));
         _servers.get(server).processQuery(distributedStagePlan, requestMetadataMap);
       }
     }
+  }
+
+  protected static DistributedStagePlan constructDistributedStagePlan(DispatchableSubPlan dispatchableSubPlan,
+      int stageId, VirtualServerAddress serverAddress) {
+    return new DistributedStagePlan(stageId, serverAddress,
+        dispatchableSubPlan.getQueryStageList().get(stageId).getPlanFragment().getFragmentRoot(),
+        new StageMetadata.Builder().setWorkerMetadataList(
+                dispatchableSubPlan.getQueryStageList().get(stageId).getWorkerMetadataList())
+            .addCustomProperties(dispatchableSubPlan.getQueryStageList().get(stageId).getCustomProperties()).build());
   }
 
   protected List<Object[]> queryH2(String sql)

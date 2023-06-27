@@ -84,10 +84,9 @@ public class CommonConstants {
     public static final String LEAD_CONTROLLER_RESOURCE_ENABLED_KEY = "RESOURCE_ENABLED";
 
     public static final String ENABLE_CASE_INSENSITIVE_KEY = "enable.case.insensitive";
+    public static final boolean DEFAULT_ENABLE_CASE_INSENSITIVE = true;
     public static final String ALLOW_TABLE_NAME_WITH_DATABASE = "allow.table.name.with.database";
     public static final boolean DEFAULT_ALLOW_TABLE_NAME_WITH_DATABASE = false;
-    @Deprecated
-    public static final String DEPRECATED_ENABLE_CASE_INSENSITIVE_KEY = "enable.case.insensitive.pql";
 
     public static final String DEFAULT_HYPERLOGLOG_LOG2M_KEY = "default.hyperloglog.log2m";
     public static final int DEFAULT_HYPERLOGLOG_LOG2M = 8;
@@ -95,6 +94,9 @@ public class CommonConstants {
     // 2 to the power of 16, for tradeoffs see datasketches library documentation:
     // https://datasketches.apache.org/docs/Theta/ThetaErrorTable.html
     public static final int DEFAULT_THETA_SKETCH_NOMINAL_ENTRIES = 65536;
+
+
+    public static final int DEFAULT_TUPLE_SKETCH_LGK = 16;
 
     // Whether to rewrite DistinctCount to DistinctCountBitmap
     public static final String ENABLE_DISTINCT_COUNT_BITMAP_OVERRIDE_KEY = "enable.distinct.count.bitmap.override";
@@ -305,6 +307,10 @@ public class CommonConstants {
     public static final boolean DEFAULT_THREAD_ALLOCATED_BYTES_MEASUREMENT = false;
     public static final String CONFIG_OF_BROKER_RESULT_REWRITER_CLASS_NAMES
         = "pinot.broker.result.rewriter.class.names";
+
+    public static final String CONFIG_OF_ENABLE_PARTITION_METADATA_MANAGER =
+        "pinot.broker.enable.partition.metadata.manager";
+    public static final boolean DEFAULT_ENABLE_PARTITION_METADATA_MANAGER = false;
 
     public static class Request {
       public static final String SQL = "sql";
@@ -820,6 +826,9 @@ public class CommonConstants {
 
     public static final String CONFIG_OF_GC_WAIT_TIME_MS = "accounting.gc.wait.time.ms";
     public static final int DEFAULT_CONFIG_OF_GC_WAIT_TIME_MS = 0;
+
+    public static final String CONFIG_OF_QUERY_KILLED_METRIC_ENABLED = "accounting.query.killed.metric.enabled";
+    public static final boolean DEFAULT_QUERY_KILLED_METRIC_ENABLED = false;
   }
 
   public static class ExecutorService {

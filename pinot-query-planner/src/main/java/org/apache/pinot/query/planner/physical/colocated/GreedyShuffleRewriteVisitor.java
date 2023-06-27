@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.pinot.common.config.provider.TableCache;
-import org.apache.pinot.query.planner.QueryPlan;
 import org.apache.pinot.query.planner.logical.RexExpression;
 import org.apache.pinot.query.planner.partitioning.FieldSelectionKeySelector;
 import org.apache.pinot.query.planner.partitioning.KeySelector;
@@ -74,9 +73,8 @@ public class GreedyShuffleRewriteVisitor implements PlanNodeVisitor<Set<Colocati
   private final Map<Integer, DispatchablePlanMetadata> _dispatchablePlanMetadataMap;
   private boolean _canSkipShuffleForJoin;
 
-  public static void optimizeShuffles(QueryPlan queryPlan, TableCache tableCache) {
-    PlanNode rootPlanNode = queryPlan.getQueryStageMap().get(0);
-    Map<Integer, DispatchablePlanMetadata> dispatchablePlanMetadataMap = queryPlan.getDispatchablePlanMetadataMap();
+  public static void optimizeShuffles(PlanNode rootPlanNode,
+      Map<Integer, DispatchablePlanMetadata> dispatchablePlanMetadataMap, TableCache tableCache) {
     GreedyShuffleRewriteContext context = GreedyShuffleRewritePreComputeVisitor.preComputeContext(rootPlanNode);
     // This assumes that if planFragmentId(S1) > planFragmentId(S2), then S1 is not an ancestor of S2.
     // TODO: If this assumption is wrong, we can compute the reverse topological ordering explicitly.
@@ -175,7 +173,7 @@ public class GreedyShuffleRewriteVisitor implements PlanNodeVisitor<Set<Colocati
         return new HashSet<>();
       } else if (colocationKeyCondition(oldColocationKeys, selector) && areServersSuperset(node.getPlanFragmentId(),
           node.getSenderStageId())) {
-        node.setExchangeType(RelDistribution.Type.SINGLETON);
+        node.setDistributionType(RelDistribution.Type.SINGLETON);
         _dispatchablePlanMetadataMap.get(node.getPlanFragmentId()).setServerInstanceToWorkerIdMap(
             _dispatchablePlanMetadataMap.get(node.getSenderStageId()).getServerInstanceToWorkerIdMap());
         return oldColocationKeys;
@@ -189,10 +187,10 @@ public class GreedyShuffleRewriteVisitor implements PlanNodeVisitor<Set<Colocati
     }
     // If the current stage is a join-stage then we already know whether shuffle can be skipped.
     if (_canSkipShuffleForJoin) {
-      node.setExchangeType(RelDistribution.Type.SINGLETON);
+      node.setDistributionType(RelDistribution.Type.SINGLETON);
       // For the join-case, servers are already re-assigned in visitJoin. Moreover, we haven't yet changed sender's
       // distribution.
-      ((MailboxSendNode) node.getSender()).setExchangeType(RelDistribution.Type.SINGLETON);
+      ((MailboxSendNode) node.getSender()).setDistributionType(RelDistribution.Type.SINGLETON);
       return oldColocationKeys;
     } else if (selector == null) {
       return new HashSet<>();
@@ -216,7 +214,7 @@ public class GreedyShuffleRewriteVisitor implements PlanNodeVisitor<Set<Colocati
       Set<ColocationKey> colocationKeys;
       if (canSkipShuffleBasic && areServersSuperset(node.getReceiverStageId(), node.getPlanFragmentId())) {
         // Servers are not re-assigned on sender-side. If needed, they are re-assigned on the receiver side.
-        node.setExchangeType(RelDistribution.Type.SINGLETON);
+        node.setDistributionType(RelDistribution.Type.SINGLETON);
         colocationKeys = oldColocationKeys;
       } else {
         colocationKeys = new HashSet<>();
