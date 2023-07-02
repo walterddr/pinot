@@ -42,6 +42,7 @@ import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.PinotLogicalExchange;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
@@ -49,6 +50,7 @@ import org.apache.calcite.sql.PinotSqlAggFunction;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.PinotOperatorTable;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlReturnTypeInference;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelBuilderFactory;
@@ -194,7 +196,7 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
     List<AggregateCall> newCalls = new ArrayList<>();
     for (AggregateCall oldCall : oldCalls) {
       newCalls.add(buildAggregateCall(oldAggRel.getInput(), oldCall.getArgList(), oldAggRel.getGroupCount(), oldCall,
-          oldCall, false));
+          oldCall, null));
     }
     return newCalls;
   }
@@ -263,7 +265,7 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
       newArgList = oldCall.getArgList().size() == 0 ? Collections.emptyList()
           : Collections.singletonList(argList.get(oldCallIndex));
     }
-    AggregateCall newCall = buildAggregateCall(exchange, newArgList, nGroups, oldCall, oldCall, false);
+    AggregateCall newCall = buildAggregateCall(exchange, newArgList, nGroups, oldCall, oldCall, null);
     rexBuilder.addAggCall(newCall, nGroups, newCalls, aggCallMapping, oldAggRel.getInput()::fieldIsNullable);
   }
 
@@ -319,12 +321,13 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
         ? Collections.singletonList(oldCallIndex)
         : oldCallIntAgg.getArgList();
     List<Integer> newArgList = convertArgList(nGroups + oldCallIndex, oldArgList);
-    AggregateCall newCall = buildAggregateCall(inputAggRel, newArgList, nGroups, oldCallIntAgg, oldCall, true);
+    AggregateCall newCall = buildAggregateCall(inputAggRel, newArgList, nGroups, oldCallIntAgg, oldCall,
+        oldCall.getType());
     rexBuilder.addAggCall(newCall, nGroups, newCalls, aggCallMapping, inputAggRel.getInput()::fieldIsNullable);
   }
 
   private static AggregateCall buildAggregateCall(RelNode input, List<Integer> newArgList, int numberGroups,
-      AggregateCall inputCall, AggregateCall functionNameCall, boolean isFinalStage) {
+      AggregateCall inputCall, AggregateCall functionNameCall, RelDataType returnType) {
     final SqlAggFunction oldAggregation = functionNameCall.getAggregation();
     final SqlKind aggKind = oldAggregation.getKind();
     String functionName = getFunctionNameFromAggregateCall(functionNameCall);
@@ -335,9 +338,9 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
     // Use the actual function name and return type for final stage to ensure that for aggregation functions that share
     // leaf and intermediate functions, we can correctly extract the correct final result. e.g. KURTOSIS and SKEWNESS
     // both use FOURTHMOMENT
-    String aggregationFunctionName = isFinalStage ? type.getName().toUpperCase(Locale.ROOT)
+    String aggregationFunctionName = returnType != null ? type.getName().toUpperCase(Locale.ROOT)
         : type.getIntermediateFunctionName().toUpperCase(Locale.ROOT);
-    SqlReturnTypeInference returnTypeInference = isFinalStage ? type.getSqlReturnTypeInference()
+    SqlReturnTypeInference returnTypeInference = returnType != null ? ReturnTypes.explicit(returnType)
         : type.getSqlIntermediateReturnTypeInference();
     SqlAggFunction sqlAggFunction =
         new PinotSqlAggFunction(aggregationFunctionName, type.getSqlIdentifier(), type.getSqlKind(),
@@ -359,9 +362,7 @@ public class PinotAggregateExchangeNodeInsertRule extends RelOptRule {
   }
 
   private static List<Integer> convertArgList(int oldCallIndexWithShift, List<Integer> argList) {
-    Preconditions.checkArgument(argList.size() <= 1,
-        "Unable to convert call as the argList contains more than 1 argument");
-    return argList.size() == 1 ? Collections.singletonList(oldCallIndexWithShift) : Collections.emptyList();
+    return argList.size() == 0 ? Collections.emptyList() : Collections.singletonList(oldCallIndexWithShift);
   }
 
   private static String getFunctionNameFromAggregateCall(AggregateCall aggregateCall) {

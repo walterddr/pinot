@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.segment.spi;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -33,7 +34,9 @@ import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlOperandTypeChecker;
 import org.apache.calcite.sql.type.SqlOperandTypeInference;
 import org.apache.calcite.sql.type.SqlReturnTypeInference;
+import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.commons.lang.StringUtils;
 import org.apache.pinot.spi.utils.CommonConstants;
 
@@ -67,15 +70,23 @@ public enum AggregationFunctionType {
       OperandTypes.NUMERIC, SqlFunctionCategory.NUMERIC, null, null, "AVG_REDUCE", ReturnTypes.AVG_AGG_FUNCTION,
       OperandTypes.NUMERIC_NUMERIC),
   MODE("mode"),
-  FIRSTWITHTIME("firstWithTime"),
-  LASTWITHTIME("lastWithTime"),
+  FIRSTWITHTIME("firstWithTime", Collections.emptyList(), false, null, SqlKind.OTHER_FUNCTION,
+      ReturnTypes.cascade(opBinding -> opBinding.getOperandType(0), SqlTypeTransforms.FORCE_NULLABLE), null,
+      OperandTypes.family(ImmutableList.of(SqlTypeFamily.ANY, SqlTypeFamily.TIMESTAMP, SqlTypeFamily.CHARACTER)),
+      SqlFunctionCategory.USER_DEFINED_FUNCTION, null, ReturnTypes.explicit(SqlTypeName.OTHER), null, null, null),
+  LASTWITHTIME("lastWithTime", Collections.emptyList(), false, null, SqlKind.OTHER_FUNCTION,
+      ReturnTypes.cascade(opBinding -> opBinding.getOperandType(0), SqlTypeTransforms.FORCE_NULLABLE), null,
+      OperandTypes.family(ImmutableList.of(SqlTypeFamily.ANY, SqlTypeFamily.TIMESTAMP, SqlTypeFamily.CHARACTER)),
+      SqlFunctionCategory.USER_DEFINED_FUNCTION, null, ReturnTypes.explicit(SqlTypeName.OTHER), null, null, null),
   MINMAXRANGE("minMaxRange"),
   DISTINCTCOUNT("distinctCount", Collections.emptyList(), false, null, SqlKind.OTHER_FUNCTION, ReturnTypes.BIGINT,
       null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION, null,
       ReturnTypes.explicit(SqlTypeName.OTHER), null, null, null),
   DISTINCTCOUNTBITMAP("distinctCountBitmap"),
   SEGMENTPARTITIONEDDISTINCTCOUNT("segmentPartitionedDistinctCount"),
-  DISTINCTCOUNTHLL("distinctCountHLL"),
+  DISTINCTCOUNTHLL("distinctCountHLL", Collections.emptyList(), false, null, SqlKind.OTHER_FUNCTION, ReturnTypes.BIGINT,
+      null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION, null,
+      ReturnTypes.explicit(SqlTypeName.OTHER), null, null, null),
   DISTINCTCOUNTRAWHLL("distinctCountRawHLL"),
   DISTINCTCOUNTSMARTHLL("distinctCountSmartHLL"),
   FASTHLL("fastHLL"),
