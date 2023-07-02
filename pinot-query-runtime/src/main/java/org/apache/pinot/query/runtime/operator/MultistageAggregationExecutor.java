@@ -194,7 +194,7 @@ public class MultistageAggregationExecutor {
     //       1. The identifier need not be the first argument
     //       2. There are more than one identifiers.
     List<ExpressionContext> expressions = aggregationFunction.getInputExpressions();
-    Preconditions.checkState(expressions.size() == 1);
+    Preconditions.checkState(expressions.size() >= 1);
     ExpressionContext expr = expressions.get(0);
     ExpressionContext.Type exprType = expr.getType();
 

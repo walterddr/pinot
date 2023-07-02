@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.pinot.common.datablock.DataBlock;
+import org.apache.pinot.common.request.Literal;
 import org.apache.pinot.common.request.context.ExpressionContext;
 import org.apache.pinot.common.request.context.FunctionContext;
 import org.apache.pinot.common.utils.DataSchema;
@@ -239,6 +240,11 @@ public class AggregateOperator extends MultiStageOperator {
     for (RexExpression operand : functionOperands) {
       ExpressionContext exprContext = convertRexExpressionToExpressionContext(operand);
       aggArguments.add(exprContext);
+    }
+
+    if (functionName.equals("FIRSTWITHTIME") || functionName.equals("LASTWITHTIME")) {
+      aggArguments.add(ExpressionContext.forIdentifier("ts"));
+      aggArguments.add(ExpressionContext.forLiteralContext(Literal.stringValue("DOUBLE")));
     }
 
     if (aggArguments.isEmpty()) {
