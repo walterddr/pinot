@@ -92,6 +92,15 @@ public class PhysicalExplainPlanVisitor implements PlanNodeVisitor<StringBuilder
         .toString();
   }
 
+  /**
+   * This wrapper prints out contextual info from {@link Context} before invoking {@link PlanNode#explain()}.
+   * The format of the contextual info is always:
+   *   "`PREFIX`[`FRAGMENT_ID`]@`HOSTNAME`:`PORT`|[`WORKER_ID`(s)] `EXPLAIN`"
+   *
+   * @param node the {@link PlanNode} to be explained
+   * @param context the {@link Context} to be wrapped in front ot plan node explain.
+   * @return stringify format of the explained result wrapped with contextual info.
+   */
   private StringBuilder appendInfo(PlanNode node, Context context) {
     int planFragmentId = node.getPlanFragmentId();
     context._builder
@@ -102,7 +111,9 @@ public class PhysicalExplainPlanVisitor implements PlanNodeVisitor<StringBuilder
         .append(context._host.getHostname())
         .append(':')
         .append(context._host.getQueryServicePort())
-        .append(' ')
+        .append("|[")
+        .append(context._workerId)
+        .append("] ")
         .append(node.explain());
     return context._builder;
   }
@@ -185,6 +196,15 @@ public class PhysicalExplainPlanVisitor implements PlanNodeVisitor<StringBuilder
     return node.getInputs().get(0).visit(this, context.next(false, context._host, context._workerId));
   }
 
+  /**
+   * Print out mailbox sending info.
+   *
+   * Noted that when print out mailbox sending info. the receiving side follows the contextual info format defined in
+   * {@link PhysicalExplainPlanVisitor#appendInfo(PlanNode, Context)}.
+   *
+   * e.g. the RECEIVERs are printed as:
+   *   "{[`FRAGMENT_ID`]@`HOSTNAME`:`PORT`|[`WORKER_ID`(s)]}" and are comma-separated.
+   */
   private StringBuilder appendMailboxSend(MailboxSendNode node, Context context) {
     appendInfo(node, context);
 
@@ -253,6 +273,7 @@ public class PhysicalExplainPlanVisitor implements PlanNodeVisitor<StringBuilder
   }
 
   public static String stringifyQueryServerInstanceToWorkerIdsEntry(Map.Entry<QueryServerInstance, List<Integer>> e) {
-    return e.getKey() + "|" + e.getValue();
+    QueryServerInstance server = e.getKey();
+    return server.getHostname() + ":" + server.getQueryServicePort() + "|" + e.getValue();
   }
 }
