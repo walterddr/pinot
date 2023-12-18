@@ -18,9 +18,16 @@
  */
 package org.apache.pinot.common.function.scalar;
 
+import com.google.common.collect.ImmutableList;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlOperandTypeChecker;
+import org.apache.calcite.sql.type.SqlReturnTypeInference;
+import org.apache.calcite.sql.type.SqlTypeFamily;
+import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.pinot.common.function.DateTimePatternHandler;
 import org.apache.pinot.common.function.DateTimeUtils;
 import org.apache.pinot.common.function.TimeZoneKey;
@@ -1058,20 +1065,64 @@ public class DateTimeFunctions {
     return results;
   }
 
+
   /**
    * The sql compatible date_trunc function for epoch time.
-   *
-   * @param unit truncate to unit (millisecond, second, minute, hour, day, week, month, quarter, year)
-   * @param timeValue value to truncate
-   * @return truncated timeValue in TimeUnit.MILLISECONDS
    */
   @ScalarFunction(names = {"dateTrunc", "date_trunc"})
+  public static class dateTruncScalarFunctions {
+    public static final SqlReturnTypeInference RETURN_TYPE_INFERENCE = ReturnTypes.BIGINT_FORCE_NULLABLE;
+    public static final SqlOperandTypeChecker OPERAND_TYPE_CHECKER = OperandTypes.family(
+        ImmutableList.of(SqlTypeFamily.CHARACTER, SqlTypeFamily.ANY, SqlTypeFamily.CHARACTER, SqlTypeFamily.CHARACTER,
+            SqlTypeFamily.CHARACTER),
+        ordinal -> ordinal > 1);
+
+    public static long eval(String unit, long timeValue) {
+      return dateTrunc(unit, timeValue, TimeUnit.MILLISECONDS.name(), ISOChronology.getInstanceUTC(),
+          TimeUnit.MILLISECONDS.name());
+    }
+
+    public static long eval(String unit, long timeValue, String inputTimeUnit) {
+      return dateTrunc(unit, timeValue, inputTimeUnit, ISOChronology.getInstanceUTC(), inputTimeUnit);
+    }
+    public static long eval(String unit, long timeValue, String inputTimeUnit, String timeZone) {
+      return dateTrunc(unit, timeValue, inputTimeUnit, DateTimeUtils.getChronology(TimeZoneKey.getTimeZoneKey(timeZone)),
+          inputTimeUnit);
+    }
+    public static long eval(String unit, long timeValue, String inputTimeUnit, String timeZone,
+        String outputTimeUnit) {
+      return dateTrunc(unit, timeValue, inputTimeUnit, DateTimeUtils.getChronology(TimeZoneKey.getTimeZoneKey(timeZone)),
+          outputTimeUnit);
+    }
+  }
+
+
+  @ScalarFunction(names = {"dateTruncMV", "date_trunc_mv"})
+  public static class dateTruncMvScalarFunction {
+    public static final SqlReturnTypeInference RETURN_TYPE_INFERENCE = ReturnTypes.BIGINT_FORCE_NULLABLE.andThen(SqlTypeTransforms.TO_ARRAY);
+    public static final SqlOperandTypeChecker OPERAND_TYPE_CHECKER = OperandTypes.family(
+        ImmutableList.of(SqlTypeFamily.CHARACTER, SqlTypeFamily.ARRAY, SqlTypeFamily.CHARACTER, SqlTypeFamily.CHARACTER,
+            SqlTypeFamily.CHARACTER), ordinal -> ordinal > 1);
+    public static long[] eval(String unit, long[] timeValue) {
+      return dateTruncMV(unit, timeValue);
+    }
+    public static long[] eval(String unit, long[] timeValue, String inputTimeUnit) {
+      return dateTruncMV(unit, timeValue, inputTimeUnit);
+    }
+    public static long[] eval(String unit, long[] timeValue, String inputTimeUnit, String timeZone) {
+      return dateTruncMV(unit, timeValue, inputTimeUnit, timeZone);
+    }
+    public static long[] eval(String unit, long[] timeValue, String inputTimeUnit, String timeZone,
+        String outputTimeUnit) {
+      return dateTruncMV(unit, timeValue, inputTimeUnit, timeZone, outputTimeUnit);
+    }
+  }
+
   public static long dateTrunc(String unit, long timeValue) {
     return dateTrunc(unit, timeValue, TimeUnit.MILLISECONDS.name(), ISOChronology.getInstanceUTC(),
         TimeUnit.MILLISECONDS.name());
   }
 
-  @ScalarFunction(names = {"dateTruncMV", "date_trunc_mv"})
   public static long[] dateTruncMV(String unit, long[] timeValue) {
     long[] results = new long[timeValue.length];
     for (int i = 0; i < timeValue.length; i++) {
@@ -1080,20 +1131,10 @@ public class DateTimeFunctions {
     return results;
   }
 
-  /**
-   * The sql compatible date_trunc function for epoch time.
-   *
-   * @param unit truncate to unit (millisecond, second, minute, hour, day, week, month, quarter, year)
-   * @param timeValue value to truncate
-   * @param inputTimeUnit TimeUnit of value, expressed in Java's joda TimeUnit
-   * @return truncated timeValue in same TimeUnit as the input
-   */
-  @ScalarFunction(names = {"dateTrunc", "date_trunc"})
   public static long dateTrunc(String unit, long timeValue, String inputTimeUnit) {
     return dateTrunc(unit, timeValue, inputTimeUnit, ISOChronology.getInstanceUTC(), inputTimeUnit);
   }
 
-  @ScalarFunction(names = {"dateTruncMV", "date_trunc_mv"})
   public static long[] dateTruncMV(String unit, long[] timeValue, String inputTimeUnit) {
     long[] results = new long[timeValue.length];
     for (int i = 0; i < timeValue.length; i++) {
@@ -1102,22 +1143,11 @@ public class DateTimeFunctions {
     return results;
   }
 
-  /**
-   * The sql compatible date_trunc function for epoch time.
-   *
-   * @param unit truncate to unit (millisecond, second, minute, hour, day, week, month, quarter, year)
-   * @param timeValue value to truncate
-   * @param inputTimeUnit TimeUnit of value, expressed in Java's joda TimeUnit
-   * @param timeZone timezone of the input
-   * @return truncated timeValue in same TimeUnit as the input
-   */
-  @ScalarFunction(names = {"dateTrunc", "date_trunc"})
   public static long dateTrunc(String unit, long timeValue, String inputTimeUnit, String timeZone) {
     return dateTrunc(unit, timeValue, inputTimeUnit, DateTimeUtils.getChronology(TimeZoneKey.getTimeZoneKey(timeZone)),
         inputTimeUnit);
   }
 
-  @ScalarFunction(names = {"dateTruncMV", "date_trunc_mv"})
   public static long[] dateTruncMV(String unit, long[] timeValue, String inputTimeUnit, String timeZone) {
     long[] results = new long[timeValue.length];
     for (int i = 0; i < timeValue.length; i++) {
@@ -1126,25 +1156,12 @@ public class DateTimeFunctions {
     return results;
   }
 
-  /**
-   * The sql compatible date_trunc function for epoch time.
-   *
-   * @param unit truncate to unit (millisecond, second, minute, hour, day, week, month, quarter, year)
-   * @param timeValue value to truncate
-   * @param inputTimeUnit TimeUnit of value, expressed in Java's joda TimeUnit
-   * @param timeZone timezone of the input
-   * @param outputTimeUnit TimeUnit to convert the output to
-   * @return truncated timeValue
-   *
-   */
-  @ScalarFunction(names = {"dateTrunc", "date_trunc"})
   public static long dateTrunc(String unit, long timeValue, String inputTimeUnit, String timeZone,
       String outputTimeUnit) {
     return dateTrunc(unit, timeValue, inputTimeUnit, DateTimeUtils.getChronology(TimeZoneKey.getTimeZoneKey(timeZone)),
         outputTimeUnit);
   }
 
-  @ScalarFunction(names = {"dateTruncMV", "date_trunc_mv"})
   public static long[] dateTruncMV(String unit, long[] timeValue, String inputTimeUnit, String timeZone,
       String outputTimeUnit) {
     long[] results = new long[timeValue.length];
@@ -1154,7 +1171,7 @@ public class DateTimeFunctions {
     return results;
   }
 
-  private static long dateTrunc(String unit, long timeValue, String inputTimeUnit, ISOChronology chronology,
+  public static long dateTrunc(String unit, long timeValue, String inputTimeUnit, ISOChronology chronology,
       String outputTimeUnit) {
     return TimeUnit.valueOf(outputTimeUnit.toUpperCase()).convert(DateTimeUtils.getTimestampField(chronology, unit)
             .roundFloor(TimeUnit.MILLISECONDS.convert(timeValue, TimeUnit.valueOf(inputTimeUnit.toUpperCase()))),

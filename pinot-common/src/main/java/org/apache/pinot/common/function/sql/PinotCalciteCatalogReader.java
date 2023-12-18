@@ -76,6 +76,7 @@ import org.apache.calcite.sql.validate.SqlUserDefinedTableMacro;
 import org.apache.calcite.sql.validate.SqlValidatorUtil;
 import org.apache.calcite.util.Optionality;
 import org.apache.calcite.util.Util;
+import org.apache.pinot.common.function.registry.PinotScalarFunction;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 
@@ -341,8 +342,12 @@ public class PinotCalciteCatalogReader implements Prepare.CatalogReader {
     final List<SqlTypeFamily> typeFamilies =
         typeFamiliesFactory.apply(dummyTypeFactory);
 
-    final SqlOperandTypeInference operandTypeInference =
-        InferTypes.explicit(argTypes);
+    final SqlOperandTypeInference operandTypeInference;
+    if (function instanceof PinotScalarFunction && ((PinotScalarFunction) function).getOperandTypeChecker() != null) {
+      operandTypeInference = ((PinotScalarFunction) function).getOperandTypeChecker().typeInference();
+    } else {
+      operandTypeInference = InferTypes.explicit(argTypes);
+    }
 
     final SqlOperandMetadata operandMetadata =
         OperandTypes.operandMetadata(typeFamilies, paramTypesFactory,
@@ -391,17 +396,20 @@ public class PinotCalciteCatalogReader implements Prepare.CatalogReader {
   }
 
   private static SqlReturnTypeInference infer(final ScalarFunction function) {
-    return opBinding -> {
-      final RelDataTypeFactory typeFactory = opBinding.getTypeFactory();
-      final RelDataType type;
-      if (function instanceof ScalarFunctionImpl) {
-        type = ((ScalarFunctionImpl) function).getReturnType(typeFactory,
-            opBinding);
-      } else {
-        type = function.getReturnType(typeFactory);
-      }
-      return toSql(typeFactory, type);
-    };
+    if (function instanceof PinotScalarFunction && ((PinotScalarFunction) function).getReturnTypeInference() != null) {
+      return ((PinotScalarFunction) function).getReturnTypeInference();
+    } else {
+      return opBinding -> {
+        final RelDataTypeFactory typeFactory = opBinding.getTypeFactory();
+        final RelDataType type;
+        if (function instanceof ScalarFunctionImpl) {
+          type = ((ScalarFunctionImpl) function).getReturnType(typeFactory, opBinding);
+        } else {
+          type = function.getReturnType(typeFactory);
+        }
+        return toSql(typeFactory, type);
+      };
+    }
   }
 
   private static SqlReturnTypeInference infer(

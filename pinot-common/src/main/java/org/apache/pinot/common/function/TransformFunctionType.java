@@ -138,12 +138,7 @@ public enum TransformFunctionType {
       ImmutableList.of(SqlTypeFamily.ANY, SqlTypeFamily.CHARACTER, SqlTypeFamily.CHARACTER, SqlTypeFamily.CHARACTER,
           SqlTypeFamily.CHARACTER)), "date_time_convert_window_hop"),
 
-  DATE_TRUNC("dateTrunc",
-      ReturnTypes.BIGINT_FORCE_NULLABLE,
-      OperandTypes.family(
-          ImmutableList.of(SqlTypeFamily.CHARACTER, SqlTypeFamily.ANY, SqlTypeFamily.CHARACTER, SqlTypeFamily.CHARACTER,
-              SqlTypeFamily.CHARACTER),
-          ordinal -> ordinal > 1), "date_trunc"),
+  DATE_TRUNC("dateTrunc","date_trunc"),
 
   FROM_DATE_TIME("fromDateTime", ReturnTypes.TIMESTAMP_NULLABLE,
       OperandTypes.family(ImmutableList.of(SqlTypeFamily.CHARACTER, SqlTypeFamily.CHARACTER, SqlTypeFamily.CHARACTER),
