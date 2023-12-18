@@ -30,10 +30,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.pinot.common.function.registry.PinotFunction;
 import org.apache.pinot.common.function.registry.PinotScalarFunction;
+import org.apache.pinot.common.function.sql.PinotCalciteCatalogReader;
 import org.apache.pinot.common.function.sql.PinotFunctionRegistry;
+import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.spi.annotations.ScalarFunction;
 import org.apache.pinot.spi.utils.PinotReflectionUtils;
 import org.slf4j.Logger;
@@ -97,13 +101,6 @@ public class FunctionRegistry {
   }
 
   /**
-   * Returns the full list of all registered ScalarFunction to Calcite.
-   */
-  public static Map<String, List<PinotFunction>> getRegisteredCalciteFunctionMap() {
-    return PinotFunctionRegistry.getFunctionMap().map();
-  }
-
-  /**
    * Returns {@code true} if the given function name is registered, {@code false} otherwise.
    */
   public static boolean containsFunction(String functionName) {
@@ -124,6 +121,24 @@ public class FunctionRegistry {
     } catch (IllegalArgumentException iae) {
       // TODO: remove deprecated FUNCTION_INFO_MAP
       return getFunctionInfoFromFunctionInfoMap(functionName, numParams);
+    }
+  }
+
+  /**
+   * Returns the {@link FunctionInfo} associated with the given function name and number of parameters, or {@code null}
+   * if there is no matching method. This method should be called after the FunctionRegistry is initialized and all
+   * methods are already registered.
+   */
+  @Nullable
+  public static FunctionInfo getFunctionInfo(SqlOperatorTable operatorTable, RelDataTypeFactory typeFactory,
+      String functionName, List<DataSchema.ColumnDataType> argTypes) {
+    PinotScalarFunction scalarFunction =
+        PinotFunctionRegistry.getScalarFunction(operatorTable, typeFactory, functionName, argTypes);
+    if (scalarFunction != null) {
+      return scalarFunction.getFunctionInfo();
+    } else {
+      throw new IllegalArgumentException(
+          "Unable to lookup function: " + functionName + " with parameter type signature: " + argTypes);
     }
   }
 
