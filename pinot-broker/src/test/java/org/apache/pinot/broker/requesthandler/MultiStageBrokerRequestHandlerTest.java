@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.helix.HelixManager;
 import org.apache.pinot.broker.broker.AccessControlFactory;
 import org.apache.pinot.broker.broker.AllowAllAccessControlFactory;
 import org.apache.pinot.broker.queryquota.QueryQuotaManager;
@@ -46,6 +47,8 @@ public class MultiStageBrokerRequestHandlerTest {
   private PinotConfiguration _config;
   @Mock
   private BrokerRoutingManager _routingManager;
+  @Mock
+  private HelixManager _helixManager;
 
   private AccessControlFactory _accessControlFactory;
   @Mock
@@ -66,7 +69,7 @@ public class MultiStageBrokerRequestHandlerTest {
     _config.setProperty(CommonConstants.MultiStageQueryRunner.KEY_OF_QUERY_RUNNER_PORT, "12345");
     _accessControlFactory = new AllowAllAccessControlFactory();
     _requestHandler =
-        new MultiStageBrokerRequestHandler(_config, "Broker_localhost", _routingManager,
+        new MultiStageBrokerRequestHandler(_config, "Broker_localhost", _helixManager, _routingManager,
                 _accessControlFactory, _queryQuotaManager, _tableCache, _brokerMetrics,
                 PinotBrokerQueryEventListenerFactory.getBrokerQueryEventListener());
   }

@@ -299,19 +299,19 @@ public abstract class BaseBrokerStarter implements ServiceStartable {
     BrokerRequestHandler singleStageBrokerRequestHandler = null;
     if (brokerRequestHandlerType.equalsIgnoreCase(Broker.GRPC_BROKER_REQUEST_HANDLER_TYPE)) {
       singleStageBrokerRequestHandler =
-          new GrpcBrokerRequestHandler(_brokerConf, brokerId, _routingManager, _accessControlFactory, queryQuotaManager,
-              tableCache, _brokerMetrics, null, _brokerQueryEventListener);
+          new GrpcBrokerRequestHandler(_brokerConf, brokerId, _spectatorHelixManager, _routingManager,
+              _accessControlFactory, queryQuotaManager, tableCache, _brokerMetrics, null, _brokerQueryEventListener);
     } else { // default request handler type, e.g. netty
       if (_brokerConf.getProperty(Broker.BROKER_NETTYTLS_ENABLED, false)) {
         singleStageBrokerRequestHandler =
-            new SingleConnectionBrokerRequestHandler(_brokerConf, brokerId, _routingManager, _accessControlFactory,
-                queryQuotaManager, tableCache, _brokerMetrics, nettyDefaults, tlsDefaults, _serverRoutingStatsManager,
-                    _brokerQueryEventListener);
+            new SingleConnectionBrokerRequestHandler(_brokerConf, brokerId, _spectatorHelixManager, _routingManager,
+                _accessControlFactory, queryQuotaManager, tableCache, _brokerMetrics, nettyDefaults, tlsDefaults,
+                _serverRoutingStatsManager, _brokerQueryEventListener);
       } else {
         singleStageBrokerRequestHandler =
-            new SingleConnectionBrokerRequestHandler(_brokerConf, brokerId, _routingManager, _accessControlFactory,
-                queryQuotaManager, tableCache, _brokerMetrics, nettyDefaults, null, _serverRoutingStatsManager,
-                    _brokerQueryEventListener);
+            new SingleConnectionBrokerRequestHandler(_brokerConf, brokerId, _spectatorHelixManager, _routingManager,
+                _accessControlFactory, queryQuotaManager, tableCache, _brokerMetrics, nettyDefaults, null,
+                _serverRoutingStatsManager, _brokerQueryEventListener);
       }
     }
 
@@ -321,8 +321,8 @@ public abstract class BaseBrokerStarter implements ServiceStartable {
       // worker requires both the "Netty port" for protocol transport; and "GRPC port" for mailbox transport.
       // TODO: decouple protocol and engine selection.
       multiStageBrokerRequestHandler =
-          new MultiStageBrokerRequestHandler(_brokerConf, brokerId, _routingManager, _accessControlFactory,
-              queryQuotaManager, tableCache, _brokerMetrics, _brokerQueryEventListener);
+          new MultiStageBrokerRequestHandler(_brokerConf, brokerId, _spectatorHelixManager, _routingManager,
+              _accessControlFactory, queryQuotaManager, tableCache, _brokerMetrics, _brokerQueryEventListener);
     }
 
     _brokerRequestHandler = new BrokerRequestHandlerDelegate(brokerId, singleStageBrokerRequestHandler,

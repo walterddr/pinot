@@ -30,9 +30,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import javax.ws.rs.core.HttpHeaders;
 import org.apache.calcite.sql.SqlLiteral;
 import org.apache.calcite.sql.SqlNumericLiteral;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.helix.HelixManager;
 import org.apache.pinot.common.request.DataSource;
 import org.apache.pinot.common.request.Expression;
 import org.apache.pinot.common.request.ExpressionType;
@@ -57,6 +59,15 @@ public class RequestUtils {
 
   private RequestUtils() {
   }
+
+  // ==========================================================================
+  // database design milestone 1.0
+  public static String getFullyQualifiedTableName(HelixManager helixManager, String inputTableName,
+      HttpHeaders httpHeaders) {
+    // TODO implement this
+    return inputTableName;
+  }
+  // ==========================================================================
 
   public static SqlNodeAndOptions parseQuery(String query)
       throws SqlCompilationException {

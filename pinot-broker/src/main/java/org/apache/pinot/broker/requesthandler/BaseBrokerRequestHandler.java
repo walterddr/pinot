@@ -44,6 +44,7 @@ import javax.ws.rs.core.Response;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.helix.HelixManager;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.util.EntityUtils;
@@ -133,6 +134,7 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
   protected final AccessControlFactory _accessControlFactory;
   protected final QueryQuotaManager _queryQuotaManager;
   protected final TableCache _tableCache;
+  protected final HelixManager _helixManager;
   protected final BrokerMetrics _brokerMetrics;
 
   protected final BrokerRequestIdGenerator _brokerIdGenerator;
@@ -151,12 +153,14 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
   private final boolean _enableDistinctCountBitmapOverride;
   private final Map<Long, QueryServers> _queriesById;
 
-  public BaseBrokerRequestHandler(PinotConfiguration config, String brokerId, BrokerRoutingManager routingManager,
-      AccessControlFactory accessControlFactory, QueryQuotaManager queryQuotaManager, TableCache tableCache,
-      BrokerMetrics brokerMetrics, BrokerQueryEventListener brokerQueryEventListener) {
+  public BaseBrokerRequestHandler(PinotConfiguration config, String brokerId, HelixManager helixManager,
+      BrokerRoutingManager routingManager, AccessControlFactory accessControlFactory,
+      QueryQuotaManager queryQuotaManager, TableCache tableCache, BrokerMetrics brokerMetrics,
+      BrokerQueryEventListener brokerQueryEventListener) {
     _brokerId = brokerId;
     _brokerIdGenerator = new BrokerRequestIdGenerator(brokerId);
     _config = config;
+    _helixManager = helixManager;
     _routingManager = routingManager;
     _accessControlFactory = accessControlFactory;
     _queryQuotaManager = queryQuotaManager;
@@ -314,6 +318,11 @@ public abstract class BaseBrokerRequestHandler implements BrokerRequestHandler {
         // Compile the request into PinotQuery
         compilationStartTimeNs = System.nanoTime();
         pinotQuery = CalciteSqlParser.compileToPinotQuery(sqlNodeAndOptions);
+        // ====================================================================
+        // database design milestone 1.0
+        pinotQuery.getDataSource().setTableName(RequestUtils.getFullyQualifiedTableName(_helixManager,
+            pinotQuery.getDataSource().getTableName(), httpHeaders));
+        // ====================================================================
       } catch (Exception e) {
         LOGGER.info("Caught exception while compiling SQL request {}: {}, {}", requestId, query, e.getMessage());
         _brokerMetrics.addMeteredGlobalValue(BrokerMeter.REQUEST_COMPILATION_EXCEPTIONS, 1);

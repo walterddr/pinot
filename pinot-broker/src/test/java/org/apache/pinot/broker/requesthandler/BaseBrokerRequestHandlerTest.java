@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import javax.annotation.Nullable;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.helix.HelixManager;
 import org.apache.helix.model.InstanceConfig;
 import org.apache.pinot.broker.broker.AllowAllAccessControlFactory;
 import org.apache.pinot.broker.queryquota.QueryQuotaManager;
@@ -196,6 +197,7 @@ public class BaseBrokerRequestHandlerTest {
     when(tableCfg.getTenantConfig()).thenReturn(tenant);
     when(tableCache.getTableConfig(anyString())).thenReturn(tableCfg);
     BrokerRoutingManager routingManager = mock(BrokerRoutingManager.class);
+    HelixManager helixManager = mock(HelixManager.class);
     when(routingManager.routingExists(anyString())).thenReturn(true);
     RoutingTable rt = mock(RoutingTable.class);
     when(rt.getServerInstanceToSegmentsMap()).thenReturn(
@@ -209,8 +211,8 @@ public class BaseBrokerRequestHandlerTest {
     PinotConfiguration config =
         new PinotConfiguration(Collections.singletonMap("pinot.broker.enable.query.cancellation", "true"));
     BaseBrokerRequestHandler requestHandler =
-        new BaseBrokerRequestHandler(config, "testBrokerId", routingManager, new AllowAllAccessControlFactory(),
-            queryQuotaManager, tableCache,
+        new BaseBrokerRequestHandler(config, "testBrokerId", helixManager, routingManager,
+            new AllowAllAccessControlFactory(), queryQuotaManager, tableCache,
             new BrokerMetrics("", PinotMetricUtils.getPinotMetricsRegistry(), true,
                 Collections.emptySet()), null) {
           @Override
