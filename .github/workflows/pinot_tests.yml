@@ -99,7 +99,7 @@ jobs:
           distribution: ${{ matrix.distribution }}
           cache: 'maven'
       # Step that does that actual cache save and restore
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         env:
           SEGMENT_DOWNLOAD_TIMEOUT_MINS: 10
         with:
@@ -178,7 +178,7 @@ jobs:
           distribution: ${{ matrix.distribution }}
           cache: 'maven'
       # Step that does that actual cache save and restore
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         env:
           SEGMENT_DOWNLOAD_TIMEOUT_MINS: 10
         with:
@@ -283,7 +283,7 @@ jobs:
           npm install -g npm@6.10.0
           npm --version
       # Step that does that actual cache save and restore
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         env:
           SEGMENT_DOWNLOAD_TIMEOUT_MINS: 10
         with:
@@ -331,7 +331,7 @@ jobs:
           distribution: ${{ matrix.distribution }}
           cache: 'maven'
       # Step that does that actual cache save and restore
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         env:
           SEGMENT_DOWNLOAD_TIMEOUT_MINS: 10
           GRADLE_ENTERPRISE_ACCESS_KEY: ${{ secrets.GE_ACCESS_TOKEN }}
